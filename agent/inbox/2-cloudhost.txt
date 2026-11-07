@@ -1,0 +1,9 @@
+From: accounts@cloudhost.example
+Subject: Invoice INV-2210, annual hosting renewal
+
+CloudHost
+Invoice INV-2210
+Service: annual renewal, 2 vCPU / 4 GB instance, Nov to Oct
+Amount due: 2.5 NEAR
+Pay to NEAR account: hosting.test.near
+Due: within 14 days
