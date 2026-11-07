@@ -1,0 +1,5 @@
+/target/
+/.tools/
+/.credentials/
+/node_modules/
+*.log

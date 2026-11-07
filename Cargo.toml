@@ -1,0 +1,34 @@
+[package]
+name = "keydare"
+version = "0.8.0"
+edition = "2024"
+publish = false
+description = "An agent spending mandate on NEAR: you hold the agent's key, try to make it pay you."
+repository = "https://github.com/ianlyoo/keydare"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# Test-only build: the settlement callback always panics, to prove a failed callback freezes the charge.
+inject-callback-failure = []
+
+[dependencies]
+near-sdk = "=5.30.1"
+
+[dev-dependencies]
+near-sdk = { version = "=5.30.1", features = ["non-contract-usage"] }
+near-workspaces = "=0.24.0"
+near-sandbox = "=0.4.0"
+anyhow = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+serde_json = "1"
+sha2 = "0.10"
+
+[profile.release]
+codegen-units = 1
+opt-level = "z"
+lto = true
+debug = false
+panic = "abort"
+overflow-checks = true
