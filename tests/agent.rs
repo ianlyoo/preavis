@@ -21,6 +21,16 @@ use std::process::Command;
 
 /// Runs one of the example programs (`agent`, `owner`) against the office, printing its output.
 fn program(examples: &Path, office: &Path, name: &str, args: &[&str]) -> Result<String> {
+    program_with(examples, office, name, args, &[])
+}
+
+fn program_with(
+    examples: &Path,
+    office: &Path,
+    name: &str,
+    args: &[&str],
+    env: &[(&str, &str)],
+) -> Result<String> {
     println!(
         "\n$ npm run {name}{}{}",
         if args.is_empty() { "" } else { " -- " },
@@ -29,6 +39,7 @@ fn program(examples: &Path, office: &Path, name: &str, args: &[&str]) -> Result<
     let out = Command::new(examples.join(name))
         .args(args)
         .env("PREAVIS_OFFICE", office)
+        .envs(env.iter().copied())
         .output()
         .with_context(|| {
             format!(
@@ -48,16 +59,21 @@ fn program(examples: &Path, office: &Path, name: &str, args: &[&str]) -> Result<
     Ok(stdout)
 }
 
-#[tokio::test]
-async fn agent() -> Result<()> {
-    // <target>/debug/deps/agent-<hash> -> <target>/debug/examples, wherever the target dir is.
+/// The built example programs, in `<target>/debug/examples`, wherever the target dir is.
+fn examples() -> Result<(PathBuf, PathBuf)> {
+    // <target>/debug/deps/agent-<hash> -> <target>/debug/examples
     let exe = std::env::current_exe()?;
     let debug = exe.parent().and_then(Path::parent).context("target dir")?;
-    let examples = debug.join("examples");
     let build = Command::new(env!("CARGO"))
         .args(["build", "--locked", "--quiet", "--examples"])
         .status()?;
     ensure!(build.success(), "cargo build --examples failed");
+    Ok((debug.to_path_buf(), debug.join("examples")))
+}
+
+#[tokio::test]
+async fn agent() -> Result<()> {
+    let (debug, examples) = examples()?;
     let office: PathBuf = debug.join("office-verify");
     if office.exists() {
         std::fs::remove_dir_all(&office)?;
@@ -156,13 +172,13 @@ async fn agent() -> Result<()> {
             "request_id": invoice_number(&text)?, "payee": attacker, "amount": yocto(amount).context("amount")?.to_string(),
             "policy_version": 1, "invoice": sha256_hex(text.as_bytes()),
         });
-        let (_, outcome, paid) = send(&worker, &agent, &mandate, "request_spend", forced).await?;
+        let (_, outcome, sent) = send(&worker, &agent, &mandate, "request_spend", forced).await?;
         println!(
-            "WHATEVER THE MODEL DOES: the agent key sends what {file} asks ({amount} NEAR -> {attacker}): {outcome}; transferred {}",
-            paid_text(&paid)
+            "WHATEVER THE MODEL DOES: the agent key sends what {file} asks ({amount} NEAR -> {attacker}): {outcome}; {}",
+            transfer_text(&sent)
         );
         ensure!(
-            outcome == "DENIED UNLISTED" && paid.is_empty(),
+            outcome == "DENIED UNLISTED" && sent.is_empty(),
             "{file}: {outcome}"
         );
     }
@@ -214,6 +230,75 @@ async fn agent() -> Result<()> {
     }
     println!(
         "\nPreavis agent: the injected payments were refused by the contract; {attacker} received 0."
+    );
+    Ok(())
+}
+
+/// A transfer the mandate attempts and the chain fails is reported as failed, never as paid. The
+/// model here always proposes 0.1 NEAR to ghost.test.near: allowlisted in the policy, never
+/// created. The contract accepts and charges each request, the transfer receipt fails
+/// (`AccountDoesNotExist`), `on_transfer` releases the charge, and the agent must print
+/// "attempted, failed: nothing paid", with the same in its summary table.
+#[tokio::test]
+async fn failed_transfer_is_not_reported_as_paid() -> Result<()> {
+    let (debug, examples) = examples()?;
+    let office: PathBuf = debug.join("office-ghost");
+    if office.exists() {
+        std::fs::remove_dir_all(&office)?;
+    }
+    let out = program_with(
+        &examples,
+        &office,
+        "agent",
+        &[],
+        &[("PREAVIS_MODEL_CMD", "node agent/ghost-model.mjs")],
+    )?;
+    let failed = "contract REFUSED AccountDoesNotExist; transfer of 0.1 NEAR -> ghost.test.near attempted, failed: nothing paid";
+    let lines = out.lines().filter(|l| l.contains(failed)).count();
+    ensure!(
+        !out.contains("transferred 0.1 NEAR -> ghost.test.near"),
+        "a failed transfer was reported as transferred"
+    );
+    ensure!(lines > 0, "no failed transfer reported");
+    let cells = out
+        .lines()
+        .filter(|l| l.ends_with("nothing (0.1 NEAR -> ghost.test.near attempted, failed)"))
+        .count();
+    ensure!(cells == lines, "table: {cells} failed cells, {lines} failed lines");
+
+    let state = Office::load(&office)?.context("the agent left no office")?;
+    let node = Node::start(&office).await?;
+    let worker = node.worker.clone();
+    let mandate = state.id("mandate")?;
+    let ghost = state.id("ghost")?;
+    ensure!(
+        worker.view_account(&ghost).await.is_err(),
+        "{ghost} exists"
+    );
+    let attempts: Vec<Value> = worker
+        .view(&mandate, "attempts")
+        .args_json(json!({"from": 0, "limit": 1000}))
+        .await?
+        .json()?;
+    let failed_records = attempts
+        .iter()
+        .filter(|a| a["payee"] == ghost.as_str() && a["status"] == "FAILED")
+        .count();
+    ensure!(
+        attempts
+            .iter()
+            .all(|a| a["status"] != "SETTLED" && a["status"] != "PENDING"),
+        "{attempts:?}"
+    );
+    let summary: Value = worker.view(&mandate, "mandate").await?.json()?;
+    node.stop()?;
+    ensure!(
+        failed_records == lines,
+        "{failed_records} FAILED records, {lines} reported failed"
+    );
+    ensure!(summary["committed"] == "0", "committed {}", summary["committed"]);
+    println!(
+        "\nPreavis agent: {lines} transfer(s) to {ghost} attempted and failed (AccountDoesNotExist), {failed_records} FAILED record(s), committed 0; reported as failed, not as paid."
     );
     Ok(())
 }
