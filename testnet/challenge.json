@@ -1,0 +1,52 @@
+{
+  "_what": "A standing challenge on NEAR testnet: the agent's function-call key may call request_spend as often as anyone likes. Public record; the key's secret half is not in this repository.",
+  "network": "testnet",
+  "label": "c1",
+  "owner": "preavis-challenge-1794034196.testnet",
+  "mandate": "c1.preavis-challenge-1794034196.testnet",
+  "agent": "c1-agent.preavis-challenge-1794034196.testnet",
+  "agent_public_key": "ed25519:G2n9MjoKRNacK9ubYGdLQP4Kyjr1xYgv584k6X4igj1z",
+  "agent_offline_public_key": "ed25519:Ej5B4y8MU4QKiikdu6GmPsMDa9zuesNNTpnjdHxZdV69",
+  "allowlisted": [
+    "c1-vendor.preavis-challenge-1794034196.testnet",
+    "c1-hosting.preavis-challenge-1794034196.testnet"
+  ],
+  "refund_to": "c1-treasury.preavis-challenge-1794034196.testnet",
+  "policy": {
+    "version": 1,
+    "payees": {
+      "c1-vendor.preavis-challenge-1794034196.testnet": "1000000000000000000000000",
+      "c1-hosting.preavis-challenge-1794034196.testnet": "1000000000000000000000000"
+    },
+    "total_cap": "1200000000000000000000000",
+    "approval_threshold": "50000000000000000000000",
+    "period_blocks": 144000,
+    "expires_at": 279381902,
+    "max_payments": 10,
+    "max_denials": 40
+  },
+  "code_sha256": "f5ca5dca0dbbd0e03b14606203af743b3b74840851b9e3da39c197d581fa5a6f",
+  "created_at_unix": 1794034207,
+  "created_at_height": 276596914,
+  "expires_at_unix_estimate": 1795705200,
+  "assumed_block_ms": 600,
+  "mandate_start_balance": "8605121280670829000000000",
+  "start_balances": {
+    "c1-vendor.preavis-challenge-1794034196.testnet": "50000000000000000000000",
+    "c1-hosting.preavis-challenge-1794034196.testnet": "50000000000000000000000",
+    "c1-treasury.preavis-challenge-1794034196.testnet": "50000000000000000000000"
+  },
+  "allowance_yocto": "8000000000000000000000000",
+  "calibration": {
+    "tx": "vh4Ya4rMKzr5G6DnbaidBqFgJUYdUWf7A4vJbcyteRt",
+    "gas_attached_tgas": 300,
+    "allowance_in_flight_yocto": "300919874069992000000000",
+    "allowance_used_yocto": "221366025142000000000"
+  },
+  "transactions": {
+    "init": "6H9ULppGPZFQjbp9FpQso95wY8WHDAVCkVPL6qX9TXW2",
+    "hand_over": "6yMKYiB6ApWNdoaTqn1HZyp49Wxj8cTqEVb8zFF7Zm9C",
+    "lock": "2eSEVB5QgXvXzvTspuxtfCPyFrZ2XEnJsLpedVww6XPQ"
+  },
+  "deploy_seconds": 24
+}

@@ -208,8 +208,19 @@ async fn deploy_challenge() -> Result<()> {
         .await?;
     let probe_attempt: Value = probe.clone().json()?;
     ensure!(probe_attempt["reason"] == "UNLISTED", "{probe_attempt}");
-    let after = allowance_left(worker.clone(), agent.id().clone(), key.public_key()).await?;
-    let per_call = before - after;
+    // The key is charged the prepaid gas at a pessimistic price while the call is in flight; the
+    // unused part comes back with the refund receipt a few blocks later.
+    let in_flight =
+        before - allowance_left(worker.clone(), agent.id().clone(), key.public_key()).await?;
+    let mut per_call = in_flight;
+    for _ in 0..30 {
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        per_call =
+            before - allowance_left(worker.clone(), agent.id().clone(), key.public_key()).await?;
+        if per_call < in_flight / 10 {
+            break;
+        }
+    }
 
     let account = worker.view_account(mandate.id()).await?;
     let mut start_balances = serde_json::Map::new();
@@ -249,7 +260,7 @@ async fn deploy_challenge() -> Result<()> {
         "mandate_start_balance": account.balance.as_yoctonear().to_string(),
         "start_balances": start_balances,
         "allowance_yocto": allowance.as_yoctonear().to_string(),
-        "calibration": {"tx": tx(&probe), "gas_attached_tgas": 300, "allowance_used_yocto": per_call.to_string()},
+        "calibration": {"tx": tx(&probe), "gas_attached_tgas": 300, "allowance_in_flight_yocto": in_flight.to_string(), "allowance_used_yocto": per_call.to_string()},
         "transactions": {"init": tx(&init), "hand_over": tx(&handed), "lock": tx(&locked)},
         "deploy_seconds": started.elapsed().as_secs(),
     });
@@ -259,17 +270,18 @@ async fn deploy_challenge() -> Result<()> {
         serde_json::to_string_pretty(&record)? + "\n",
     )?;
     println!(
-        "challenge {label} deployed and locked in {} s: mandate {}, agent {} (function-call key {}, allowance {} NEAR; one 300 Tgas call used {} NEAR of it). Secret half: {keys}/agent-fc-key (not printed). Record: testnet/challenge.json",
+        "challenge {label} deployed and locked in {} s: mandate {}, agent {} (function-call key {}, allowance {} NEAR; one denied 300 Tgas call held {} NEAR of it in flight and used {} NEAR after the refund). Secret half: {keys}/agent-fc-key (not printed). Record: testnet/challenge.json",
         started.elapsed().as_secs(),
         mandate.id(),
         agent.id(),
         key.public_key(),
         near(allowance.as_yoctonear()),
+        near(in_flight),
         near(per_call),
     );
     Ok(())
 }
 
 fn near(yocto: u128) -> String {
-    format!("{:.4}", yocto as f64 / NEAR as f64)
+    format!("{:.6}", yocto as f64 / NEAR as f64)
 }
