@@ -1,5 +1,5 @@
 {
-  "_what": "A standing challenge on NEAR testnet: the agent's function-call key may call request_spend as often as anyone likes. Public record; the key's secret half is not in this repository.",
+  "_what": "A challenge mandate on NEAR testnet, prepared to be attacked with a published function-call key, never published and retired (see \"retired\" and docs/challenge.md). The key's secret half was never in this repository.",
   "network": "testnet",
   "label": "c1",
   "owner": "preavis-challenge-1794034196.testnet",
@@ -48,5 +48,13 @@
     "hand_over": "6yMKYiB6ApWNdoaTqn1HZyp49Wxj8cTqEVb8zFF7Zm9C",
     "lock": "2eSEVB5QgXvXzvTspuxtfCPyFrZ2XEnJsLpedVww6XPQ"
   },
-  "deploy_seconds": 24
+  "deploy_seconds": 24,
+  "retired": {
+    "why": "not published: with one shared key, a holder can take every window's request slots at no budget cost (docs/challenge.md)",
+    "key_deleted_tx": "95y8ARUx4CjZ6HkTBuLWk5x6xP68UZ6zJQ6G3ktUYKPA",
+    "close_tx": "F9QHYYWiJRXtvGTiAspDkybLGQLzp9zJi4qxoCWLoDa5",
+    "closed_at_height": 276604661,
+    "closed_at_unix": 1794038863,
+    "refunded_yocto": "6304011280670829000000000"
+  }
 }

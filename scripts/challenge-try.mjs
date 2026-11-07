@@ -1,4 +1,5 @@
-// One request to the standing challenge mandate, signed with its published function-call key.
+// One request to the challenge mandate, signed with its function-call key. The c1 mandate was never
+// published and is retired (docs/challenge.md): its key is deleted, so this script has no target now.
 // No dependencies (Node >= 18): the transaction is serialized (borsh) and signed (ed25519) here.
 //
 //   PREAVIS_CHALLENGE_KEY='ed25519:…' npm run challenge -- <payee> <amount in NEAR> [request_id]

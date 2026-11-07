@@ -8,9 +8,10 @@
 // balances), recomputes the totals from the stored attempts, and fails unless the mandate account
 // has no access key left. It also reads the deployed code itself (view_code) and fails on any
 // host-function import outside the allowlist tests/verify.rs keeps (no deploy, no key, no
-// function-call action exists in the code). Last, if testnet/challenge.json exists, the standing
-// challenge mandate: its lock, keys, policy, today's window and the counter
-// "attempts so far / paid to attackers". Exit code: 0 only if every check holds.
+// function-call action exists in the code). Last, if testnet/challenge.json exists, the challenge
+// mandate: its lock, keys, policy and the counter "attempts / paid to attackers"; once the record
+// says it was retired, that its key is gone, it is closed and the close refunded only refund_to.
+// Exit code: 0 only if every check holds.
 // Usage: node scripts/observe-testnet.mjs [receipts.json] [challenge.json | none]
 import { existsSync, readFileSync } from "node:fs";
 import { base58, query, rpc, sha256, view } from "./near-rpc.mjs";
@@ -216,12 +217,14 @@ console.log("\nOn-chain attempts:");
 console.table(attempts.map((a) => ({ request_id: a.request_id, payee: a.payee.split(".")[0],
   NEAR: Number(BigInt(a.amount)) / 1e24, status: a.status, reason: a.reason ?? "" })));
 
-// 6. The standing challenge, if one is recorded: a separate mandate, separate accounts and keys,
-// nothing shared with the run above or with the local sandbox.
+// 6. The challenge mandate, if one is recorded: a separate mandate, separate accounts and keys,
+// nothing shared with the run above or with the local sandbox. Retired (record.retired): the
+// function-call key deleted, the mandate closed, its remainder sent to refund_to only.
 let counter = "";
 if (challenge) {
   const c = challenge;
-  console.log(`\nThe standing challenge: ${c.mandate} (deployed ${new Date(c.created_at_unix * 1000).toISOString()})`);
+  const r = c.retired;
+  console.log(`\nThe challenge mandate: ${c.mandate} (deployed ${new Date(c.created_at_unix * 1000).toISOString()}${r ? `; never published, retired ${new Date(r.closed_at_unix * 1000).toISOString()}` : ""})`);
   const acct = await query({ request_type: "view_account", account_id: c.mandate }).catch(() => null);
   check(acct?.code_hash === localHash && c.code_sha256 === sha256(wasm).toString("hex"),
     "challenge: deployed code hash equals sha256 of res/preavis.wasm", `chain ${acct?.code_hash}, local ${localHash}`);
@@ -233,10 +236,28 @@ if (challenge) {
   const fcKeys = agentKeys.filter((k) => k.access_key.permission.FunctionCall);
   const fcp = fcKeys[0]?.access_key.permission.FunctionCall;
   const full = agentKeys.filter((k) => k.access_key.permission === "FullAccess").map((k) => k.public_key);
-  check(fcKeys.length === 1 && fcKeys[0].public_key === c.agent_public_key && fcp.receiver_id === c.mandate
-    && fcp.method_names.join() === "request_spend" && full.join() === c.agent_offline_public_key,
-    "challenge: the agent's challenge key is function-call only (request_spend on the mandate); the only other key is the offline full-access key",
-    agentKeys.map((k) => `${k.public_key} ${JSON.stringify(k.access_key.permission)}`));
+  if (r) {
+    check(fcKeys.length === 0 && full.join() === c.agent_offline_public_key,
+      `challenge: retired: the agent's function-call key ${c.agent_public_key} is gone; only the offline full-access key is left, so nobody can call request_spend`,
+      agentKeys.map((k) => `${k.public_key} ${JSON.stringify(k.access_key.permission)}`));
+    const status = async (h, sender) => rpc("EXPERIMENTAL_tx_status", { tx_hash: h, sender_account_id: sender, wait_until: "FINAL" }).catch(() => null);
+    const fired = await status(r.key_deleted_tx, c.agent);
+    const firedOk = fired && "SuccessValue" in fired.status && fired.transaction.receiver_id === c.agent
+      && fired.transaction.actions.length === 1 && fired.transaction.actions[0].DeleteKey?.public_key === c.agent_public_key;
+    check(firedOk, `challenge: retired: transaction ${r.key_deleted_tx} deleted that key`);
+    const closed = await status(r.close_tx, c.owner);
+    const sent = (closed?.receipts ?? []).filter((x) => x.predecessor_id === c.mandate && x.receiver_id !== c.mandate)
+      .flatMap((x) => (x.receipt.Action?.actions ?? []).filter((a) => a.Transfer).map((a) => [x.receiver_id, a.Transfer.deposit]));
+    check(closed && "SuccessValue" in closed.status && closed.transaction.signer_id === c.owner && closed.transaction.receiver_id === c.mandate
+      && sent.length === 1 && sent[0][0] === c.refund_to && sent[0][1] === r.refunded_yocto,
+      `challenge: retired: transaction ${r.close_tx} closed the mandate and sent ${near(r.refunded_yocto)} to ${c.refund_to}, nothing to anyone else`,
+      sent.map(([to, v]) => `transfer ${near(v)} -> ${to}`));
+  } else {
+    check(fcKeys.length === 1 && fcKeys[0].public_key === c.agent_public_key && fcp.receiver_id === c.mandate
+      && fcp.method_names.join() === "request_spend" && full.join() === c.agent_offline_public_key,
+      "challenge: the agent's challenge key is function-call only (request_spend on the mandate); the only other key is the offline full-access key",
+      agentKeys.map((k) => `${k.public_key} ${JSON.stringify(k.access_key.permission)}`));
+  }
   const allowance = fcp?.allowance == null ? null : BigInt(fcp.allowance);
   const perCall = BigInt(c.calibration.allowance_used_yocto);
   const used = allowance === null ? 0n : BigInt(c.allowance_yocto) - allowance;
@@ -261,31 +282,36 @@ if (challenge) {
     const toOthers = all.filter((a) => ["PENDING", "SETTLED", "AWAITING_APPROVAL"].includes(a.status) && !allowlisted.has(a.payee));
     const paidOut = sum(all.filter((a) => ["PENDING", "SETTLED"].includes(a.status)));
     const balance = BigInt(acct?.amount ?? 0);
-    const floor = BigInt(c.mandate_start_balance) - paidOut;
+    const refunded = r ? BigInt(r.refunded_yocto) : 0n;
+    const floor = BigInt(c.mandate_start_balance) - paidOut - refunded;
     const unexplained = floor > balance ? floor - balance : 0n;
     const paidToAttackers = sum(toOthers) + unexplained;
     check(toOthers.length === 0 && unexplained === 0n,
-      "challenge: paid to attackers is 0: no attempt to a non-allowlisted account got past the checks, and the balance fell by no more than the allowlisted payments",
-      [`balance ${near(balance)} = start ${near(c.mandate_start_balance)} - paid to allowlisted ${near(paidOut)} + ${near(balance - floor > 0n ? balance - floor : 0n)} gas rewards`,
+      `challenge: paid to attackers is 0: no attempt to a non-allowlisted account got past the checks, and the balance fell by no more than the allowlisted payments${r ? " and the refund" : ""}`,
+      [`balance ${near(balance)} = start ${near(c.mandate_start_balance)} - paid to allowlisted ${near(paidOut)}${r ? ` - refunded to ${c.refund_to} ${near(refunded)}` : ""} + ${near(balance - floor > 0n ? balance - floor : 0n)} gas rewards`,
        ...toOthers.map((a) => `PAID OUTSIDE THE MANDATE: ${a.request_id} ${near(a.amount)} -> ${a.payee} (${a.status})`)]);
 
-    const now = await finalBlock();
-    const msPerBlock = (Number(now.timestamp_nanosec) / 1e6 - c.created_at_unix * 1000) / (now.height - c.created_at_height);
-    const at = (height) => new Date(Number(now.timestamp_nanosec) / 1e6 + (height - now.height) * msPerBlock).toISOString().slice(0, 16).replace("T", " ") + " UTC";
-    const problems = live(s, { period_start: s.period_start - s.period * s.policy.period_blocks, period: 0 }, now.height)
-      .filter((p) => !p.startsWith("period counters"));
-    check(problems.length === 0 && !s.closed,
-      `challenge: today's window ${s.period}: ${s.period_payments}/${s.policy.max_payments} payments, ${s.period_denials}/${s.policy.max_denials} denials stored, ${near(s.period_committed)} of ${near(s.policy.approval_threshold)} committed${s.exhausted ? "; EXHAUSTED" : ""}`,
-      [s.exhausted
-        ? `EXHAUSTED: no more requests are accepted until block ${s.resets_at} (about ${at(s.resets_at)}); then a fresh window opens`
-        : `the window resets at block ${s.resets_at} (about ${at(s.resets_at)}); a flood exhausts only this window`,
-       `expires at block ${s.policy.expires_at} (about ${at(s.policy.expires_at)}); after that anyone may close() it, which refunds ${c.refund_to}${s.expired ? "; EXPIRED" : ""}`,
-       `height ${now.height}, measured ${msPerBlock.toFixed(0)} ms per block since deployment`,
-       ...problems.map((p) => `INCONSISTENT: ${p}`)]);
+    if (r) {
+      check(s.closed === true, `challenge: retired: mandate() reports closed; nothing can be requested or approved any more`);
+    } else {
+      const now = await finalBlock();
+      const msPerBlock = (Number(now.timestamp_nanosec) / 1e6 - c.created_at_unix * 1000) / (now.height - c.created_at_height);
+      const at = (height) => new Date(Number(now.timestamp_nanosec) / 1e6 + (height - now.height) * msPerBlock).toISOString().slice(0, 16).replace("T", " ") + " UTC";
+      const problems = live(s, { period_start: s.period_start - s.period * s.policy.period_blocks, period: 0 }, now.height)
+        .filter((p) => !p.startsWith("period counters"));
+      check(problems.length === 0 && !s.closed,
+        `challenge: today's window ${s.period}: ${s.period_payments}/${s.policy.max_payments} payments, ${s.period_denials}/${s.policy.max_denials} denials stored, ${near(s.period_committed)} of ${near(s.policy.approval_threshold)} committed${s.exhausted ? "; EXHAUSTED" : ""}`,
+        [s.exhausted
+          ? `EXHAUSTED: no more requests are accepted until block ${s.resets_at} (about ${at(s.resets_at)}); then a fresh window opens`
+          : `the window resets at block ${s.resets_at} (about ${at(s.resets_at)}); a flood exhausts only this window`,
+         `expires at block ${s.policy.expires_at} (about ${at(s.policy.expires_at)}); after that anyone may close() it, which refunds ${c.refund_to}${s.expired ? "; EXPIRED" : ""}`,
+         `height ${now.height}, measured ${msPerBlock.toFixed(0)} ms per block since deployment`,
+         ...problems.map((p) => `INCONSISTENT: ${p}`)]);
+    }
     const calls = s.attempts + s.denials_not_stored - 1;
-    check(allowance !== null, `challenge: the key's gas allowance left: ${allowance === null ? "unlimited (not expected)" : near(allowance)} of ${near(c.allowance_yocto)}`,
+    if (!r) check(allowance !== null, `challenge: the key's gas allowance left: ${allowance === null ? "unlimited (not expected)" : near(allowance)} of ${near(c.allowance_yocto)}`,
       `used ${near(used)} ≈ ${perCall ? (used / perCall).toString() : "?"} calls at the calibrated ${near(perCall)} net per call; while a call is in flight it holds up to ${near(c.calibration.allowance_in_flight_yocto)}`);
-    counter = `attempts so far: ${calls} / paid to attackers: ${paidToAttackers === 0n ? "0" : near(paidToAttackers)}`;
+    counter = `${r ? "retired, never published; attempts" : "attempts so far"}: ${calls} / paid to attackers: ${paidToAttackers === 0n ? "0" : near(paidToAttackers)}`;
     console.log(`\n  ${counter}`);
     console.log(`  (requests the contract recorded since the lock, not counting the deployer's calibration call; ${s.payments} paid to the allowlist, ${s.denials} denied, ${s.denials_not_stored} denials over the daily record limit counted but not stored)`);
   }
