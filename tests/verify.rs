@@ -630,7 +630,7 @@ async fn expiry(w: &mut World<near_workspaces::network::Sandbox>, wasm: &[u8]) -
         "{event}"
     );
     w.ev.held(
-        "after expires_at nothing is paid, and anyone can close the mandate, to refund_to only",
+        "after expires_at no new spend is accepted or approved, and anyone can close the mandate, to refund_to only",
         "contract",
         &format!("past block {expires_at}: request and approve panic EXPIRED; before it a stranger's close panicked OWNER_ONLY, after it the stranger's close sent {refund} yocto (balance - storage stake) to refund_to and nothing to the stranger"),
         Some(&closed),

@@ -12,7 +12,9 @@ is a NEAR function-call key that can call one method, `request_spend`, and nothi
 `npm run verify` runs everything in a local NEAR sandbox. It generates the agent's working key on
 your machine, and that key signs every agent call in the run: in the sandbox, you control the
 agent's signing. The key it prints is the public half; the secret half never leaves your machine.
-Every claim below is checked by a command you can run, and a false claim would fail that command.
+Every claim below is checked by a command you can run, and a false claim would fail that command
+in the scenario it states; the claims cover scripted scenarios and sampled random sequences, not
+every possible policy or schedule.
 
 *Préavis* is French for "advance notice": the mandate states in advance what the agent may pay, and the contract holds it to that.
 
@@ -85,7 +87,7 @@ HELD 29  [contract] hostile requests can't grow storage without bound, and the h
          observed: limits per period 3 payments + 3 stored denials; the 4th request DENIED EXHAUSTED, mandate() shows exhausted until resets_at 605013; 5 more denials only counted, storage unchanged at 231807 bytes; largest record +407 bytes <= 500 reserved; underfunded init panics BALANCE_BELOW_CAP_AND_STORAGE
 HELD 30  [contract] the agent's own budget and request slots are per period: exhausted until the period's last block, fresh from the next one's first
          observed: period of 40 blocks, 3 steps and 4 requests each; period 0: p0-a SETTLED, p0-b AWAITING_APPROVAL, p0-c SETTLED, p0-d AWAITING_APPROVAL; requests landing before block 305: 4, all DENIED EXHAUSTED; edge-4 landing at block 307 SETTLED in period 1
-HELD 33  [contract] after expires_at nothing is paid, and anyone can close the mandate, to refund_to only
+HELD 33  [contract] after expires_at no new spend is accepted or approved, and anyone can close the mandate, to refund_to only
          observed: past block 370: request and approve panic EXPIRED; before it a stranger's close panicked OWNER_ONLY, after it the stranger's close sent 7698005808282341200000000 yocto (balance - storage stake) to refund_to and nothing to the stranger
 ...
 Preavis verify: 35 claims held, 0 broken.
@@ -105,15 +107,24 @@ account balances, `mandate()` and every stored attempt):
   `refund_to` from `close` (the owner's, or anyone's from `expires_at` on);
 - **I2** `committed` ≤ the total cap, each payee's committed ≤ its cap, the agent's own commitments
   per period ≤ `approval_threshold`;
-- **I3** `committed` equals the sum of settled requests, and so do the payees' balances; a failed
-  transfer is released exactly once;
+- **I3** after normal callback completion: `committed` equals the sum of settled requests, and so
+  do the payees' balances; a failed transfer is released exactly once. If the settlement callback
+  itself fails, the request stays `PENDING` with its charge frozen, by design (claim 28); the
+  general safety statement is `committed` = `PENDING` + `SETTLED`, within the caps;
 - **I4** the mandate's balance falls only by settled payments and the close refund;
-- **I5** a request denied `EXHAUSTED` in one period is accepted in a later one if it still fits.
+- **I5** on an open, unexpired mandate, a request denied `EXHAUSTED` in one period, resent with a
+  valid request ID that is still free, is accepted in a later one if it still fits the caps.
+
+Within one mandate the steps are sequential: each waits for its final result, callback included,
+before the next. 64 mandates run in parallel, independent of each other. Two requests in flight at
+once on one mandate are covered by a separate fixed scenario (claim 27, `tests/verify.rs`), not by
+the random sequences. These are tests of sampled executions, not a proof.
 
 `npm run verify` runs 64 sequences × 40 steps with the fixed seed 494 (about 50 s of its run time).
 `npm run verify:fuzz` runs 2,048 sequences × 40 steps with a random seed, printed first;
-`PREAVIS_FUZZ_SEED=<seed>` replays the same operations. A violation prints the seed and the failing
-sequence, shrunk by removing steps. Measured on 2026-11-07 (commit `e1a3b86`, an
+`PREAVIS_FUZZ_SEED=<seed>` replays the same operations. A violation prints the seed, the failing
+sequence shrunk by removing steps, and the command that reproduces it (with
+`PREAVIS_FUZZ_FEATURE`, if the run used one). Measured on 2026-11-07 (commit `e1a3b86`, an
 `ubuntu:24.04` container on Apple Silicon): `npm run verify:fuzz` ran 2,048 sequences × 40 steps
 (81,920 steps, 73,178 transactions), seed `1794048948887891796`, in 1,478 s: **0 invariant
 violations**. What the sequences contain, each check, and a
@@ -293,8 +304,12 @@ reply. For example `PREAVIS_MODEL_CMD='ollama run qwen2.5:7b'`, or `node scripts
 against any OpenAI-compatible endpoint (`PREAVIS_MODEL_URL`, `PREAVIS_MODEL_NAME`; with
 `PREAVIS_MODEL_API_KEY` a hosted endpoint bills your key, never ours). `PREAVIS_MODEL_CMD='node
 agent/hijacked-model.mjs'` is a stand-in that obeys every invoice: the agent then does request the
-attacker's payments, and the contract answers `DENIED UNLISTED`. A live model's choices vary from
-run to run; the contract's answers do not.
+attacker's payments, and the contract answers `DENIED UNLISTED`. `PREAVIS_MODEL_CMD='node
+agent/ghost-model.mjs'` always proposes 0.1 NEAR to `ghost.test.near`, allowlisted but never
+created: each transfer fails, its charge is released, and the agent prints `transfer of 0.1 NEAR ->
+ghost.test.near attempted, failed: nothing paid`. The agent reports transfers from each receipt's
+execution status: only a receipt that succeeded counts as `transferred`. A live model's choices
+vary from run to run; the contract's answers do not.
 
 ## 5. Check the live testnet mandates, without any key
 
@@ -470,8 +485,9 @@ The contract is about 610 lines of Rust in [`src/lib.rs`](src/lib.rs). The scena
 | `tests/verify.rs`, `tests/common/mod.rs` | `npm run verify`: 35 claims, plus `no_admin_surface` and `prebuilt_is_from_this_source` |
 | `tests/attack.rs`, `attack/inputs.json` | `npm run attack-local` |
 | `tests/fuzz.rs` | the invariant tests: 64 random sequences in `npm run verify`, 2,048 in `npm run verify:fuzz` |
-| `examples/agent.rs`, `examples/owner.rs`, `tests/common/office.rs`, `agent/` | `npm run agent` and `npm run owner`: the persistent local node, inbox, prompt, recorded transcript, hijacked stand-in |
-| `tests/agent.rs` | both programs end to end, inside `npm run verify` |
+| `examples/agent.rs`, `examples/owner.rs`, `tests/common/office.rs`, `agent/` | `npm run agent` and `npm run owner`: the persistent local node, inbox, prompt, recorded transcript, hijacked and ghost stand-ins |
+| `tests/agent.rs` | both programs end to end, and a failed transfer reported as failed, inside `npm run verify` |
+| `tests/limits.rs` | known limits of the deployed contract, pinned as they are (THREAT_MODEL "Not stopped" 12), inside `npm run verify` |
 | `scripts/local-model.sh`, `scripts/model-openai.mjs` | the pinned local model and its adapter |
 | `tests/testnet.rs` | `npm run execute-testnet` |
 | `tests/challenge.rs`, `scripts/challenge-try.mjs`, `testnet/challenge.json`, [docs/challenge.md](docs/challenge.md) | the challenge mandate (never published, retired): deploy, retire, one request, its public record and a design note |

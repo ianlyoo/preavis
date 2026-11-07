@@ -68,7 +68,7 @@ instead of the committed wasm (only claim 1's hash changes).
 | 30 | the agent's own budget and request slots are per period: exhausted until the period's last block, fresh from the next one's first | contract | `period of 40 blocks, 3 steps and 4 requests each; period 0: p0-a SETTLED, p0-b AWAITING_APPROVAL, p0-c SETTLED, p0-d AWAITING_APPROVAL; requests landing before block 305: 4, all DENIED EXHAUSTED; edge-4 landing at block 307 SETTLED in period 1` |
 | 31 | a failed transfer gives its share of the period's budget back | settlement | `period 1: 1 step used, a 2-step transfer to the never-created account FAILED, period budget back to 1 step; the next 2-step request settles without the owner` |
 | 32 | a held request reserves nothing: its approval is checked against the caps as they are then | contract | `vendor cap 6 steps, 4 settled; approving p0-b (2) brings vendor to 6 and pays; approving p0-d (1) panics PayeeCap, p0-d stays AWAITING_APPROVAL` |
-| 33 | after expires_at nothing is paid, and anyone can close the mandate, to refund_to only | contract | `past block 370: request and approve panic EXPIRED; before it a stranger's close panicked OWNER_ONLY, after it the stranger's close sent <amount> yocto (balance - storage stake) to refund_to and nothing to the stranger` |
+| 33 | after expires_at no new spend is accepted or approved, and anyone can close the mandate, to refund_to only | contract | `past block 370: request and approve panic EXPIRED; before it a stranger's close panicked OWNER_ONLY, after it the stranger's close sent <amount> yocto (balance - storage stake) to refund_to and nothing to the stranger` |
 | 34 | closing sends the remainder only to refund_to; afterwards nothing is approved or requested | contract | `refund_to +<amount> yocto = balance - storage stake; approving the held keep-1 panics CLOSED, rejecting it works; next request panics CLOSED` |
 | 35 | firing the agent takes one key deletion; its next request is refused | protocol | `owner deleted the working key; next request: RPC error InvalidAccessKeyError(AccessKeyNotFound)` |
 
@@ -195,6 +195,7 @@ times.
 | A hold survives a restart | `npm run owner -- list` (a new process, the node restarted from disk): `3 request(s) awaiting your approval` |
 | The owner sees the invoice bytes, their sha256, the payee and the amount before signing | `npm run owner -- approve inv-2210`: `payee hosting.test.near`, `amount 2.5 NEAR (2500000000000000000000000 yoctoNEAR)`, `invoice sha256 155951782b63…`, the invoice verbatim, then `contract SETTLED; transferred 2.5 NEAR -> hosting.test.near` |
 | A rejection pays nothing | `npm run owner -- reject inv-1050-2`: `contract REJECTED; transferred nothing` |
+| A failed transfer is reported as failed, never as paid | `tests/agent.rs` runs `npm run agent` with `PREAVIS_MODEL_CMD="node agent/ghost-model.mjs"`, a stand-in that always proposes 0.1 NEAR to the allowlisted, never-created `ghost.test.near`: `contract REFUSED AccountDoesNotExist; transfer of 0.1 NEAR -> ghost.test.near attempted, failed: nothing paid` for each invoice, `nothing (0.1 NEAR -> ghost.test.near attempted, failed)` in the table, then `Preavis agent: 7 transfer(s) to ghost.test.near attempted and failed (AccountDoesNotExist), 7 FAILED record(s), committed 0; reported as failed, not as paid.` |
 | Measured result | `MEASURED by balance, equal to the settled records: vendor.test.near +0.4 NEAR, hosting.test.near +2.8 NEAR, attacker.test.near +0 NEAR.` |
 | What the contract does not stop | `NOT stopped, by design: inv-2215 (consulting nobody ordered) paid 0.3 NEAR to hosting.test.near, an allowlisted payee, within the agent's own limit.` |
 
@@ -217,13 +218,20 @@ Self-verification beyond the scripted claims: `tests/fuzz.rs` runs seeded random
 operations, each against a fresh sandbox mandate with a random policy, and checks the invariants after
 every step. Nothing touches testnet and no model is involved.
 
+What this does and does not show. Within one mandate the steps are **sequential**: each step's
+transaction runs to its final result, `on_transfer` included, before the next is sent. 64 mandates
+run **in parallel**, each with its own sequence and independent of the others. So the random
+sequences do not interleave operations on one mandate; two requests in flight at once on one
+mandate are a separate, fixed scenario (claim 27, `tests/verify.rs:120`). The invariants below are
+checked on the executions sampled, not proven for every policy, schedule or interleaving.
+
 | Command | Sequences × steps | Seed | Expected last line |
 |---|---|---|---|
 | `npm run verify` (part of it) | 64 × 40 | 494 | `Preavis invariants: 64 sequences × 40 steps (2560 steps, <n> transactions), seed 494, <s> s: 0 invariant violations.` |
 | `npm run verify:fuzz` | 2,048 × 40 | random, printed on the first line | `Preavis invariants: 2048 sequences × 40 steps (81920 steps, <n> transactions), seed <seed>, <s> s: 0 invariant violations.` |
 
-`PREAVIS_FUZZ_SEED`, `PREAVIS_FUZZ_SEQUENCES` and `PREAVIS_FUZZ_STEPS` override the defaults. A seed
-fixes the policies and the operations; the sandbox makes blocks in real time, so the block each step
+`PREAVIS_FUZZ_SEED`, `PREAVIS_FUZZ_SEQUENCES` and `PREAVIS_FUZZ_STEPS` override the defaults;
+`PREAVIS_FUZZ_FEATURE` selects a test-only build, as in the negative control below. A seed fixes the policies and the operations; the sandbox makes blocks in real time, so the block each step
 lands in, and with it where period edges fall, varies between runs. Before the last line both modes
 print how many steps ended in each outcome (e.g. `Agent request_spend → DENIED EXHAUSTED`), and the
 long run prints a progress line per 64 sequences.
@@ -253,13 +261,24 @@ owner's. The random steps are:
 |---|---|---|
 | I1 | every transfer out of the mandate goes to an allowlisted payee within its cap, for a request settled or failed in that step, or to `refund_to` from `close` signed by the owner or landing at or after `expires_at`; a stranger's close succeeds exactly when it lands at or after `expires_at`; no look-alike, sub-account or unlisted implicit account ever comes to exist | every transfer in the step's receipts, read back from the node; the `closed` event; `view_account` at the end |
 | I2 | `committed` ≤ total cap; each payee's committed ≤ its cap; `period_committed`, and the agent's own settled amount in every period, ≤ `approval_threshold` | `mandate()` and all attempts |
-| I3 | `committed` and each payee's committed equal the sum of settled requests; `held` equals the sum awaiting; nothing is left `PENDING`; a failed request has `releases` 1, every other 0; vendor, hosting and the implicit payee gain exactly what settled to them, `refund_to` exactly the close refund, the unlisted account nothing | `mandate()`, all attempts, balances |
+| I3 | after normal callback completion (the step's transaction finished, its `on_transfer` included): `committed` and each payee's committed equal the sum of settled requests; `held` equals the sum awaiting; nothing is left `PENDING`; a failed request has `releases` 1, every other 0; vendor, hosting and the implicit payee gain exactly what settled to them, `refund_to` exactly the close refund, the unlisted account nothing | `mandate()`, all attempts, balances |
 | I4 | the mandate's balance falls by exactly the settled payments plus the close refund (it may gain at most what its own receipts burnt; in the sandbox it gains nothing) | its balance before and after |
-| I5 | a request denied `EXHAUSTED` in period N, resent in a later period (under its own ID unless that was taken since), is accepted (`SETTLED`, `FAILED` or `AWAITING_APPROVAL`) in a period after N whenever it still fits the payee's cap and the total cap | the returned attempt; `mandate()` read just before |
+| I5 | on an open, unexpired mandate (the resend is skipped once it is closed or past `expires_at`, and a resend landing at or after `expires_at` is not counted), a request denied `EXHAUSTED` in period N, resent in a later period with a valid request ID (its own, or a fresh one if its own was taken since), is accepted (`SETTLED`, `FAILED` or `AWAITING_APPROVAL`) in a period after N whenever it still fits the payee's cap and the total cap | the returned attempt; `mandate()` read just before |
+
+**Scope of I3.** "Nothing is left `PENDING`" holds only after normal callback completion. If the
+settlement callback itself fails, the request stays `PENDING` and its charge stays frozen, by design
+(claim 28: no refund, no resend); the oracle then reports I3 (or I1, see the negative control). The
+general safety statement, which also holds in that case, is: `committed` = sum of `PENDING` +
+`SETTLED` requests, per payee as well, within the payee caps and the total cap.
+
+**Expiry.** `request_spend` and `approve` are refused from `expires_at` on: no new spend is accepted
+or approved after expiry. A transfer already sent before it still completes, and its `on_transfer`
+has no expiry check; `close` then pays the remainder to `refund_to`.
 
 A violation stops the run with `INVARIANT VIOLATED: I<n> …`, the seed and the sequence number. The
-test then replays the sequence on fresh mandates, removing one step at a time, and prints the
-shortest sequence that still fails, step by step, and the command that reproduces it.
+test then replays the sequence on fresh mandates, removing one step at a time (a greedy pass, not a
+guaranteed shortest sequence), prints the shorter sequence that still fails, step by step, and the
+command that reproduces it, including `PREAVIS_FUZZ_FEATURE` when the run used one.
 
 **Negative control.** `PREAVIS_FUZZ_FEATURE=inject-callback-failure` runs the test-only build
 whose settlement callback always panics (claim 28). Measured on the final test code:
