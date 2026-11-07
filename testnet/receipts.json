@@ -1,38 +1,93 @@
 {
   "network": "testnet",
   "rpc": "https://test.rpc.fastnear.com",
-  "recorded_at_unix": 1794025119,
-  "owner": "preavis-1794025012.testnet",
-  "mandate": "mandate.preavis-1794025012.testnet",
-  "agent": "agent.preavis-1794025012.testnet",
-  "agent_public_key": "ed25519:2vXnvDNyd7h2xV3azHqTuR5dSnuPHjcJsKfo3w5BoUUz",
-  "agent_offline_public_key": "ed25519:F8vgavfy7iRiRUPoDdTRunuWQmN2ie9nG7hBK351m1qD",
-  "code_sha256": "3ce2d293ed41c1bf4ffb4c5cd93003665f1ed13ecc35157193f02185e1035431",
+  "recorded_at_unix": 1794029649,
+  "owner": "preavis-1794029520.testnet",
+  "mandate": "mandate.preavis-1794029520.testnet",
+  "agent": "agent.preavis-1794029520.testnet",
+  "agent_public_key": "ed25519:AG9ZSUydzQr7B5hPJPpFT9pBbb8TxwCNdbitwDYFPBS1",
+  "agent_offline_public_key": "ed25519:DDBx5MfjBiTTmYLv7p3bPhvm6BexWLtXqUiXaVUW4T9e",
+  "vendor": "vendor.preavis-1794029520.testnet",
+  "hosting": "hosting.preavis-1794029520.testnet",
+  "attacker": "attacker.preavis-1794029520.testnet",
+  "treasury": "treasury.preavis-1794029520.testnet",
+  "ghost": "ghost.preavis-1794029520.testnet",
+  "code_sha256": "900a452b59841520e10327c6409b5d3e81265b6c57edd5b1f25c5109fcab6f82",
   "step_yocto": "100000000000000000000",
   "claims": [
     {
       "claim": "mandate deployed and initialized with a fixed policy",
       "layer": "setup",
-      "observed": "mandate.preavis-1794025012.testnet code sha256 3ce2d293ed41c1bf4ffb4c5cd93003665f1ed13ecc35157193f02185e1035431",
-      "tx": "7uqt5EN7vRDyxhNaCoU1KWVHLr4WdqZFazujPkmv6AfV",
-      "signer": "mandate.preavis-1794025012.testnet",
-      "tx_status": "success"
+      "observed": "mandate.preavis-1794029520.testnet code sha256 900a452b59841520e10327c6409b5d3e81265b6c57edd5b1f25c5109fcab6f82",
+      "tx": "66afkFbfZPhcy2jYD25byJHq1a7q454TWKmkXuDStyN8",
+      "signer": "mandate.preavis-1794029520.testnet",
+      "tx_status": "success",
+      "events": [],
+      "failures": [],
+      "receiver": "mandate.preavis-1794029520.testnet",
+      "actions": [
+        {
+          "FunctionCall": {
+            "method_name": "new",
+            "args": "eyJvd25lciI6InByZWF2aXMtMTc5NDAyOTUyMC50ZXN0bmV0IiwiYWdlbnQiOiJhZ2VudC5wcmVhdmlzLTE3OTQwMjk1MjAudGVzdG5ldCIsInJlZnVuZF90byI6InRyZWFzdXJ5LnByZWF2aXMtMTc5NDAyOTUyMC50ZXN0bmV0IiwicG9saWN5Ijp7Im1heF9wYXltZW50cyI6MzAsIm1heF9kZW5pYWxzIjozMCwidmVyc2lvbiI6MSwicGF5ZWVzIjp7InZlbmRvci5wcmVhdmlzLTE3OTQwMjk1MjAudGVzdG5ldCI6IjMwMDAwMDAwMDAwMDAwMDAwMDAwMDAiLCJob3N0aW5nLnByZWF2aXMtMTc5NDAyOTUyMC50ZXN0bmV0IjoiMzAwMDAwMDAwMDAwMDAwMDAwMDAwMCIsImdob3N0LnByZWF2aXMtMTc5NDAyOTUyMC50ZXN0bmV0IjoiMTAwMDAwMDAwMDAwMDAwMDAwMDAwMCJ9LCJ0b3RhbF9jYXAiOiI0MDAwMDAwMDAwMDAwMDAwMDAwMDAwIiwiYXBwcm92YWxfdGhyZXNob2xkIjoiMTAwMDAwMDAwMDAwMDAwMDAwMDAwMCJ9fQ==",
+            "gas": 10000000000000,
+            "deposit": "0"
+          }
+        }
+      ]
     },
     {
       "claim": "an owner method refuses the agent, even with a full-access key",
       "layer": "contract",
       "observed": "panic OWNER_ONLY, no state change",
-      "tx": "6ijq41CM8XBD56m8HhM6FfrUK9PbMeYJJbGbzudyAmMg",
-      "signer": "agent.preavis-1794025012.testnet",
-      "tx_status": "failure"
+      "tx": "GMBPzETVhjgKKbqun7tgn8tZfwGFAme1RevSn8aVmC6g",
+      "signer": "agent.preavis-1794029520.testnet",
+      "tx_status": "failure",
+      "events": [],
+      "failures": [
+        "OWNER_ONLY"
+      ],
+      "receiver": "mandate.preavis-1794029520.testnet",
+      "actions": [
+        {
+          "FunctionCall": {
+            "method_name": "reject",
+            "args": "eyJyZXF1ZXN0X2lkIjoieCJ9",
+            "gas": 10000000000000,
+            "deposit": "0"
+          }
+        }
+      ]
     },
     {
       "claim": "your key (the agent's working key) is a function-call key for request_spend on the mandate only",
       "layer": "protocol",
       "observed": "agent keys: FunctionCall receiver=mandate methods=[request_spend] (yours) + the owner's offline full-access key",
-      "tx": "vEc9smUz4MbbeJFkCgsS4Q4qz6BmruFLnUM5FNJkYDm",
-      "signer": "agent.preavis-1794025012.testnet",
-      "tx_status": "success"
+      "tx": "N9ECs7F9gYZV3HHE49sXYnnNhZUrPg7jSq93xqyU9hs",
+      "signer": "agent.preavis-1794029520.testnet",
+      "tx_status": "success",
+      "events": [],
+      "failures": [],
+      "receiver": "agent.preavis-1794029520.testnet",
+      "actions": [
+        {
+          "AddKey": {
+            "public_key": "ed25519:AG9ZSUydzQr7B5hPJPpFT9pBbb8TxwCNdbitwDYFPBS1",
+            "access_key": {
+              "nonce": 0,
+              "permission": {
+                "FunctionCall": {
+                  "allowance": "250000000000000000000000",
+                  "receiver_id": "mandate.preavis-1794029520.testnet",
+                  "method_names": [
+                    "request_spend"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      ]
     },
     {
       "claim": "the agent's key cannot attach a deposit",
@@ -40,7 +95,9 @@
       "observed": "RPC error InvalidAccessKeyError(DepositWithFunctionCall), no record",
       "tx": null,
       "signer": null,
-      "tx_status": null
+      "tx_status": null,
+      "events": null,
+      "failures": null
     },
     {
       "claim": "the agent's key cannot call any other method (approve)",
@@ -48,127 +105,667 @@
       "observed": "RPC error InvalidAccessKeyError(MethodNameMismatch)",
       "tx": null,
       "signer": null,
-      "tx_status": null
+      "tx_status": null,
+      "events": null,
+      "failures": null
     },
     {
       "claim": "only the agent can request a spend; not even the owner",
       "layer": "contract",
       "observed": "panic AGENT_ONLY, no record",
-      "tx": "AvmNQNYYRyEXAzRDXeYXP6htck6hDGwwt2dmUKypsxEC",
-      "signer": "preavis-1794025012.testnet",
-      "tx_status": "failure"
+      "tx": "EyQZkdMwTT3xmagq2tJy5jKZ5XaANEYQRsdKrkxgVCvX",
+      "signer": "preavis-1794029520.testnet",
+      "tx_status": "failure",
+      "events": [],
+      "failures": [
+        "AGENT_ONLY"
+      ],
+      "receiver": "mandate.preavis-1794029520.testnet",
+      "actions": [
+        {
+          "FunctionCall": {
+            "method_name": "request_spend",
+            "args": "eyJyZXF1ZXN0X2lkIjoib3duZXItc3BlbmQiLCJwYXllZSI6InZlbmRvci5wcmVhdmlzLTE3OTQwMjk1MjAudGVzdG5ldCIsImFtb3VudCI6IjEwMDAwMDAwMDAwMDAwMDAwMDAwMCIsInBvbGljeV92ZXJzaW9uIjoxLCJpbnZvaWNlIjoiaW52b2ljZS1vd25lci1zcGVuZCJ9",
+            "gas": 100000000000000,
+            "deposit": "0"
+          }
+        }
+      ]
     },
     {
       "claim": "paying an unlisted account (you) is refused",
       "layer": "contract",
       "observed": "DENIED UNLISTED, record #0 + event, budget unchanged",
-      "tx": "DeQNzjPqY452eGD9suo4B9qbZX3yptTPvmZKCsT8LZq3",
-      "signer": "agent.preavis-1794025012.testnet",
-      "tx_status": "success"
+      "tx": "4Bae5zjuW7soBSk8pDs3BWYCbZy8RGFoNE6FaGtgztrP",
+      "signer": "agent.preavis-1794029520.testnet",
+      "tx_status": "success",
+      "events": [
+        {
+          "standard": "preavis",
+          "version": "2.0.0",
+          "event": "denied",
+          "data": [
+            {
+              "index": 0,
+              "request_id": "pay-me",
+              "actor": "agent.preavis-1794029520.testnet",
+              "payee": "attacker.preavis-1794029520.testnet",
+              "amount": "100000000000000000000",
+              "policy_version": 1,
+              "invoice": "invoice-pay-me",
+              "status": "DENIED",
+              "reason": "UNLISTED",
+              "needs_approval": false,
+              "releases": 0
+            }
+          ]
+        }
+      ],
+      "failures": [],
+      "receiver": "mandate.preavis-1794029520.testnet",
+      "actions": [
+        {
+          "FunctionCall": {
+            "method_name": "request_spend",
+            "args": "eyJyZXF1ZXN0X2lkIjoicGF5LW1lIiwicGF5ZWUiOiJhdHRhY2tlci5wcmVhdmlzLTE3OTQwMjk1MjAudGVzdG5ldCIsImFtb3VudCI6IjEwMDAwMDAwMDAwMDAwMDAwMDAwMCIsInBvbGljeV92ZXJzaW9uIjoxLCJpbnZvaWNlIjoiaW52b2ljZS1wYXktbWUifQ==",
+            "gas": 100000000000000,
+            "deposit": "0"
+          }
+        }
+      ]
     },
     {
       "claim": "a request under another policy version is refused",
       "layer": "contract",
       "observed": "DENIED POLICY_VERSION, record #1 + event, budget unchanged",
-      "tx": "AtiCXb7REK8Sb3R3zsc2YC3kvAr1nL8mwiN73b2AVDcn",
-      "signer": "agent.preavis-1794025012.testnet",
-      "tx_status": "success"
+      "tx": "ALaaFxkApWwirh2RiAqMH4rJptTyfTjLPks4PhdDDk2M",
+      "signer": "agent.preavis-1794029520.testnet",
+      "tx_status": "success",
+      "events": [
+        {
+          "standard": "preavis",
+          "version": "2.0.0",
+          "event": "denied",
+          "data": [
+            {
+              "index": 1,
+              "request_id": "old-policy",
+              "actor": "agent.preavis-1794029520.testnet",
+              "payee": "vendor.preavis-1794029520.testnet",
+              "amount": "100000000000000000000",
+              "policy_version": 2,
+              "invoice": "invoice-old-policy",
+              "status": "DENIED",
+              "reason": "POLICY_VERSION",
+              "needs_approval": false,
+              "releases": 0
+            }
+          ]
+        }
+      ],
+      "failures": [],
+      "receiver": "mandate.preavis-1794029520.testnet",
+      "actions": [
+        {
+          "FunctionCall": {
+            "method_name": "request_spend",
+            "args": "eyJyZXF1ZXN0X2lkIjoib2xkLXBvbGljeSIsInBheWVlIjoidmVuZG9yLnByZWF2aXMtMTc5NDAyOTUyMC50ZXN0bmV0IiwiYW1vdW50IjoiMTAwMDAwMDAwMDAwMDAwMDAwMDAwIiwicG9saWN5X3ZlcnNpb24iOjIsImludm9pY2UiOiJpbnZvaWNlLW9sZC1wb2xpY3kifQ==",
+            "gas": 100000000000000,
+            "deposit": "0"
+          }
+        }
+      ]
     },
     {
       "claim": "a zero-amount request is refused",
       "layer": "contract",
       "observed": "DENIED ZERO_AMOUNT, record #2 + event, budget unchanged",
-      "tx": "Ez3XDxsLXeRuGiJDpKD7auSVK2B6Cn7XxhGEQV9attU2",
-      "signer": "agent.preavis-1794025012.testnet",
-      "tx_status": "success"
+      "tx": "88fghKbtAzQR57fn6VNfdcKat7KUWTDSjqXnZJaUs1PQ",
+      "signer": "agent.preavis-1794029520.testnet",
+      "tx_status": "success",
+      "events": [
+        {
+          "standard": "preavis",
+          "version": "2.0.0",
+          "event": "denied",
+          "data": [
+            {
+              "index": 2,
+              "request_id": "zero",
+              "actor": "agent.preavis-1794029520.testnet",
+              "payee": "vendor.preavis-1794029520.testnet",
+              "amount": "0",
+              "policy_version": 1,
+              "invoice": "invoice-zero",
+              "status": "DENIED",
+              "reason": "ZERO_AMOUNT",
+              "needs_approval": false,
+              "releases": 0
+            }
+          ]
+        }
+      ],
+      "failures": [],
+      "receiver": "mandate.preavis-1794029520.testnet",
+      "actions": [
+        {
+          "FunctionCall": {
+            "method_name": "request_spend",
+            "args": "eyJyZXF1ZXN0X2lkIjoiemVybyIsInBheWVlIjoidmVuZG9yLnByZWF2aXMtMTc5NDAyOTUyMC50ZXN0bmV0IiwiYW1vdW50IjoiMCIsInBvbGljeV92ZXJzaW9uIjoxLCJpbnZvaWNlIjoiaW52b2ljZS16ZXJvIn0=",
+            "gas": 100000000000000,
+            "deposit": "0"
+          }
+        }
+      ]
     },
     {
       "claim": "an in-policy purchase settles",
       "layer": "settlement",
       "observed": "SETTLED after checking the transfer result; vendor balance +4 steps exactly",
-      "tx": "54vp4DFG6BDk9v1KJxJDAMML3WeBih9VZn4pXfpBsq9G",
-      "signer": "agent.preavis-1794025012.testnet",
-      "tx_status": "success"
+      "tx": "79BtrLV4F6bpo42oQgf15MwTLtYLp4k1UTc85gcd1Uf9",
+      "signer": "agent.preavis-1794029520.testnet",
+      "tx_status": "success",
+      "events": [
+        {
+          "standard": "preavis",
+          "version": "2.0.0",
+          "event": "pending",
+          "data": [
+            {
+              "index": 3,
+              "request_id": "buy-1",
+              "actor": "agent.preavis-1794029520.testnet",
+              "payee": "vendor.preavis-1794029520.testnet",
+              "amount": "400000000000000000000",
+              "policy_version": 1,
+              "invoice": "invoice-buy-1",
+              "status": "PENDING",
+              "reason": null,
+              "needs_approval": false,
+              "releases": 0
+            }
+          ]
+        },
+        {
+          "standard": "preavis",
+          "version": "2.0.0",
+          "event": "settled",
+          "data": [
+            {
+              "index": 3,
+              "request_id": "buy-1",
+              "actor": "agent.preavis-1794029520.testnet",
+              "payee": "vendor.preavis-1794029520.testnet",
+              "amount": "400000000000000000000",
+              "policy_version": 1,
+              "invoice": "invoice-buy-1",
+              "status": "SETTLED",
+              "reason": null,
+              "needs_approval": false,
+              "releases": 0
+            }
+          ]
+        }
+      ],
+      "failures": [],
+      "receiver": "mandate.preavis-1794029520.testnet",
+      "actions": [
+        {
+          "FunctionCall": {
+            "method_name": "request_spend",
+            "args": "eyJyZXF1ZXN0X2lkIjoiYnV5LTEiLCJwYXllZSI6InZlbmRvci5wcmVhdmlzLTE3OTQwMjk1MjAudGVzdG5ldCIsImFtb3VudCI6IjQwMDAwMDAwMDAwMDAwMDAwMDAwMCIsInBvbGljeV92ZXJzaW9uIjoxLCJpbnZvaWNlIjoiaW52b2ljZS1idXktMSJ9",
+            "gas": 100000000000000,
+            "deposit": "0"
+          }
+        }
+      ]
     },
     {
       "claim": "replaying a settled request is refused",
       "layer": "contract",
       "observed": "DENIED REPLAY, record #4 + event, budget unchanged",
-      "tx": "D2mYkFixSprH5xTrnt2nA94aizjxMU4FEW8pXs8zanmC",
-      "signer": "agent.preavis-1794025012.testnet",
-      "tx_status": "success"
+      "tx": "LcbtpH36rtVnQTYELJxKaZ6qafaHbNgBQ2sxbP4TUeP",
+      "signer": "agent.preavis-1794029520.testnet",
+      "tx_status": "success",
+      "events": [
+        {
+          "standard": "preavis",
+          "version": "2.0.0",
+          "event": "denied",
+          "data": [
+            {
+              "index": 4,
+              "request_id": "buy-1",
+              "actor": "agent.preavis-1794029520.testnet",
+              "payee": "vendor.preavis-1794029520.testnet",
+              "amount": "400000000000000000000",
+              "policy_version": 1,
+              "invoice": "invoice-buy-1",
+              "status": "DENIED",
+              "reason": "REPLAY",
+              "needs_approval": false,
+              "releases": 0
+            }
+          ]
+        }
+      ],
+      "failures": [],
+      "receiver": "mandate.preavis-1794029520.testnet",
+      "actions": [
+        {
+          "FunctionCall": {
+            "method_name": "request_spend",
+            "args": "eyJyZXF1ZXN0X2lkIjoiYnV5LTEiLCJwYXllZSI6InZlbmRvci5wcmVhdmlzLTE3OTQwMjk1MjAudGVzdG5ldCIsImFtb3VudCI6IjQwMDAwMDAwMDAwMDAwMDAwMDAwMCIsInBvbGljeV92ZXJzaW9uIjoxLCJpbnZvaWNlIjoiaW52b2ljZS1idXktMSJ9",
+            "gas": 100000000000000,
+            "deposit": "0"
+          }
+        }
+      ]
     },
     {
       "claim": "reusing a request ID with altered arguments is refused",
       "layer": "contract",
       "observed": "DENIED ALTERED, record #5 + event, budget unchanged",
-      "tx": "GCnpKFWrgqcPRegy3UWVPomfEeWQy9VcfbSLRyQSuLb8",
-      "signer": "agent.preavis-1794025012.testnet",
-      "tx_status": "success"
+      "tx": "FcQszQtmgscQ8xJfedy8PvqFs7iUw1sST6RMoy6VK917",
+      "signer": "agent.preavis-1794029520.testnet",
+      "tx_status": "success",
+      "events": [
+        {
+          "standard": "preavis",
+          "version": "2.0.0",
+          "event": "denied",
+          "data": [
+            {
+              "index": 5,
+              "request_id": "buy-1",
+              "actor": "agent.preavis-1794029520.testnet",
+              "payee": "vendor.preavis-1794029520.testnet",
+              "amount": "900000000000000000000",
+              "policy_version": 1,
+              "invoice": "invoice-buy-1",
+              "status": "DENIED",
+              "reason": "ALTERED",
+              "needs_approval": false,
+              "releases": 0
+            }
+          ]
+        }
+      ],
+      "failures": [],
+      "receiver": "mandate.preavis-1794029520.testnet",
+      "actions": [
+        {
+          "FunctionCall": {
+            "method_name": "request_spend",
+            "args": "eyJyZXF1ZXN0X2lkIjoiYnV5LTEiLCJwYXllZSI6InZlbmRvci5wcmVhdmlzLTE3OTQwMjk1MjAudGVzdG5ldCIsImFtb3VudCI6IjkwMDAwMDAwMDAwMDAwMDAwMDAwMCIsInBvbGljeV92ZXJzaW9uIjoxLCJpbnZvaWNlIjoiaW52b2ljZS1idXktMSJ9",
+            "gas": 100000000000000,
+            "deposit": "0"
+          }
+        }
+      ]
     },
     {
       "claim": "a failed transfer releases its charge exactly once",
       "layer": "settlement",
       "observed": "transfer receipt AccountDoesNotExist; FAILED, releases=1, budget back to 4 steps",
-      "tx": "DUytmYeJgYUurZeTPpoK74EBybj7WMXgNWRcCu9euDxP",
-      "signer": "agent.preavis-1794025012.testnet",
-      "tx_status": "success"
+      "tx": "C9QjSEdNnE5um51u4SsJ8DYvRxTpYtJJkDD8pmdTQdU9",
+      "signer": "agent.preavis-1794029520.testnet",
+      "tx_status": "success",
+      "events": [
+        {
+          "standard": "preavis",
+          "version": "2.0.0",
+          "event": "pending",
+          "data": [
+            {
+              "index": 6,
+              "request_id": "ghost-1",
+              "actor": "agent.preavis-1794029520.testnet",
+              "payee": "ghost.preavis-1794029520.testnet",
+              "amount": "200000000000000000000",
+              "policy_version": 1,
+              "invoice": "invoice-ghost-1",
+              "status": "PENDING",
+              "reason": null,
+              "needs_approval": false,
+              "releases": 0
+            }
+          ]
+        },
+        {
+          "standard": "preavis",
+          "version": "2.0.0",
+          "event": "failed",
+          "data": [
+            {
+              "index": 6,
+              "request_id": "ghost-1",
+              "actor": "agent.preavis-1794029520.testnet",
+              "payee": "ghost.preavis-1794029520.testnet",
+              "amount": "200000000000000000000",
+              "policy_version": 1,
+              "invoice": "invoice-ghost-1",
+              "status": "FAILED",
+              "reason": null,
+              "needs_approval": false,
+              "releases": 1
+            }
+          ]
+        }
+      ],
+      "failures": [
+        "AccountDoesNotExist"
+      ],
+      "receiver": "mandate.preavis-1794029520.testnet",
+      "actions": [
+        {
+          "FunctionCall": {
+            "method_name": "request_spend",
+            "args": "eyJyZXF1ZXN0X2lkIjoiZ2hvc3QtMSIsInBheWVlIjoiZ2hvc3QucHJlYXZpcy0xNzk0MDI5NTIwLnRlc3RuZXQiLCJhbW91bnQiOiIyMDAwMDAwMDAwMDAwMDAwMDAwMDAiLCJwb2xpY3lfdmVyc2lvbiI6MSwiaW52b2ljZSI6Imludm9pY2UtZ2hvc3QtMSJ9",
+            "gas": 100000000000000,
+            "deposit": "0"
+          }
+        }
+      ]
     },
     {
       "claim": "splitting a payment does not dodge owner approval: past 10 steps the agent waits",
       "layer": "contract",
       "observed": "split-a SETTLED, split-b AWAITING_APPROVAL (reserved, not paid)",
-      "tx": "CREVcAe66FUtejFNrQsDe6StBkRkXx1ekg6K2YnYQhso",
-      "signer": "agent.preavis-1794025012.testnet",
-      "tx_status": "success"
+      "tx": "6DPL7sdLpwFXTd5jdzXnWZ5VAynqDjZdyPvq5oMEhYFm",
+      "signer": "agent.preavis-1794029520.testnet",
+      "tx_status": "success",
+      "events": [
+        {
+          "standard": "preavis",
+          "version": "2.0.0",
+          "event": "awaiting_approval",
+          "data": [
+            {
+              "index": 8,
+              "request_id": "split-b",
+              "actor": "agent.preavis-1794029520.testnet",
+              "payee": "vendor.preavis-1794029520.testnet",
+              "amount": "400000000000000000000",
+              "policy_version": 1,
+              "invoice": "invoice-split-b",
+              "status": "AWAITING_APPROVAL",
+              "reason": null,
+              "needs_approval": true,
+              "releases": 0
+            }
+          ]
+        }
+      ],
+      "failures": [],
+      "receiver": "mandate.preavis-1794029520.testnet",
+      "actions": [
+        {
+          "FunctionCall": {
+            "method_name": "request_spend",
+            "args": "eyJyZXF1ZXN0X2lkIjoic3BsaXQtYiIsInBheWVlIjoidmVuZG9yLnByZWF2aXMtMTc5NDAyOTUyMC50ZXN0bmV0IiwiYW1vdW50IjoiNDAwMDAwMDAwMDAwMDAwMDAwMDAwIiwicG9saWN5X3ZlcnNpb24iOjEsImludm9pY2UiOiJpbnZvaWNlLXNwbGl0LWIifQ==",
+            "gas": 100000000000000,
+            "deposit": "0"
+          }
+        }
+      ]
     },
     {
       "claim": "an approval with an altered amount is refused",
       "layer": "contract",
       "observed": "panic BINDING_MISMATCH, request still held",
-      "tx": "3cRTQQEfgRHbGKrJyFstNsjBMVr37LANKpcX21KFjBYU",
-      "signer": "preavis-1794025012.testnet",
-      "tx_status": "failure"
+      "tx": "2Mnh6F168V8dLuxPNNMH5UNjHRhiUija7bXQag4JFzt3",
+      "signer": "preavis-1794029520.testnet",
+      "tx_status": "failure",
+      "events": [],
+      "failures": [
+        "BINDING_MISMATCH"
+      ],
+      "receiver": "mandate.preavis-1794029520.testnet",
+      "actions": [
+        {
+          "FunctionCall": {
+            "method_name": "approve",
+            "args": "eyJyZXF1ZXN0X2lkIjoic3BsaXQtYiIsInBheWVlIjoidmVuZG9yLnByZWF2aXMtMTc5NDAyOTUyMC50ZXN0bmV0IiwiYW1vdW50IjoiOTAwMDAwMDAwMDAwMDAwMDAwMDAwIiwicG9saWN5X3ZlcnNpb24iOjEsImludm9pY2UiOiJpbnZvaWNlLXNwbGl0LWIifQ==",
+            "gas": 100000000000000,
+            "deposit": "0"
+          }
+        }
+      ]
+    },
+    {
+      "claim": "an approval for a different invoice is refused",
+      "layer": "contract",
+      "observed": "panic BINDING_MISMATCH, request still held",
+      "tx": "4ToaQgLBNaVomaonhhPF1omgM6iTotj6iL56iBdwpyZ4",
+      "signer": "preavis-1794029520.testnet",
+      "tx_status": "failure",
+      "events": [],
+      "failures": [
+        "BINDING_MISMATCH"
+      ],
+      "receiver": "mandate.preavis-1794029520.testnet",
+      "actions": [
+        {
+          "FunctionCall": {
+            "method_name": "approve",
+            "args": "eyJyZXF1ZXN0X2lkIjoic3BsaXQtYiIsInBheWVlIjoidmVuZG9yLnByZWF2aXMtMTc5NDAyOTUyMC50ZXN0bmV0IiwiYW1vdW50IjoiNDAwMDAwMDAwMDAwMDAwMDAwMDAwIiwicG9saWN5X3ZlcnNpb24iOjEsImludm9pY2UiOiJpbnZvaWNlLXNvbWV0aGluZy1lbHNlIn0=",
+            "gas": 100000000000000,
+            "deposit": "0"
+          }
+        }
+      ]
     },
     {
       "claim": "the owner's exact approval pays the held request once",
       "layer": "settlement",
       "observed": "SETTLED; vendor balance +12 steps in total",
-      "tx": "A9AikS4S2RPgMRNUESLeeGLnvWhdAHbrEEx3xCNjsJSi",
-      "signer": "preavis-1794025012.testnet",
-      "tx_status": "success"
+      "tx": "CP4PGMnGhLbypqLiS7mdyW5uAmepurNHZPDGEXD2iBpB",
+      "signer": "preavis-1794029520.testnet",
+      "tx_status": "success",
+      "events": [
+        {
+          "standard": "preavis",
+          "version": "2.0.0",
+          "event": "pending",
+          "data": [
+            {
+              "index": 8,
+              "request_id": "split-b",
+              "actor": "agent.preavis-1794029520.testnet",
+              "payee": "vendor.preavis-1794029520.testnet",
+              "amount": "400000000000000000000",
+              "policy_version": 1,
+              "invoice": "invoice-split-b",
+              "status": "PENDING",
+              "reason": null,
+              "needs_approval": true,
+              "releases": 0
+            }
+          ]
+        },
+        {
+          "standard": "preavis",
+          "version": "2.0.0",
+          "event": "settled",
+          "data": [
+            {
+              "index": 8,
+              "request_id": "split-b",
+              "actor": "agent.preavis-1794029520.testnet",
+              "payee": "vendor.preavis-1794029520.testnet",
+              "amount": "400000000000000000000",
+              "policy_version": 1,
+              "invoice": "invoice-split-b",
+              "status": "SETTLED",
+              "reason": null,
+              "needs_approval": true,
+              "releases": 0
+            }
+          ]
+        }
+      ],
+      "failures": [],
+      "receiver": "mandate.preavis-1794029520.testnet",
+      "actions": [
+        {
+          "FunctionCall": {
+            "method_name": "approve",
+            "args": "eyJyZXF1ZXN0X2lkIjoic3BsaXQtYiIsInBheWVlIjoidmVuZG9yLnByZWF2aXMtMTc5NDAyOTUyMC50ZXN0bmV0IiwiYW1vdW50IjoiNDAwMDAwMDAwMDAwMDAwMDAwMDAwIiwicG9saWN5X3ZlcnNpb24iOjEsImludm9pY2UiOiJpbnZvaWNlLXNwbGl0LWIifQ==",
+            "gas": 100000000000000,
+            "deposit": "0"
+          }
+        }
+      ]
     },
     {
       "claim": "exceeding a payee's cap is refused",
       "layer": "contract",
       "observed": "DENIED PAYEE_CAP, record #9 + event, budget unchanged",
-      "tx": "GeDHAYorLpuowasMTnovppLjf6gXaqQa9Jktax528Y5k",
-      "signer": "agent.preavis-1794025012.testnet",
-      "tx_status": "success"
+      "tx": "BCTU3DUwWWYHkb7Rxo8MVQBLinApVCSMEwFheSGzXo5V",
+      "signer": "agent.preavis-1794029520.testnet",
+      "tx_status": "success",
+      "events": [
+        {
+          "standard": "preavis",
+          "version": "2.0.0",
+          "event": "denied",
+          "data": [
+            {
+              "index": 9,
+              "request_id": "big-vendor",
+              "actor": "agent.preavis-1794029520.testnet",
+              "payee": "vendor.preavis-1794029520.testnet",
+              "amount": "2000000000000000000000",
+              "policy_version": 1,
+              "invoice": "invoice-big-vendor",
+              "status": "DENIED",
+              "reason": "PAYEE_CAP",
+              "needs_approval": false,
+              "releases": 0
+            }
+          ]
+        }
+      ],
+      "failures": [],
+      "receiver": "mandate.preavis-1794029520.testnet",
+      "actions": [
+        {
+          "FunctionCall": {
+            "method_name": "request_spend",
+            "args": "eyJyZXF1ZXN0X2lkIjoiYmlnLXZlbmRvciIsInBheWVlIjoidmVuZG9yLnByZWF2aXMtMTc5NDAyOTUyMC50ZXN0bmV0IiwiYW1vdW50IjoiMjAwMDAwMDAwMDAwMDAwMDAwMDAwMCIsInBvbGljeV92ZXJzaW9uIjoxLCJpbnZvaWNlIjoiaW52b2ljZS1iaWctdmVuZG9yIn0=",
+            "gas": 100000000000000,
+            "deposit": "0"
+          }
+        }
+      ]
     },
     {
       "claim": "exceeding the total cap is refused, held requests included",
       "layer": "contract",
       "observed": "DENIED TOTAL_CAP, record #11 + event, budget unchanged",
-      "tx": "GzkW6jpJeh6Mw54Z5MJhAE5AdQayQRB32kGUiABMmC14",
-      "signer": "agent.preavis-1794025012.testnet",
-      "tx_status": "success"
+      "tx": "2c7HhrbqGjYFT5jvrEFEZG7PNRhPPCb8fADkkc6F1VnL",
+      "signer": "agent.preavis-1794029520.testnet",
+      "tx_status": "success",
+      "events": [
+        {
+          "standard": "preavis",
+          "version": "2.0.0",
+          "event": "denied",
+          "data": [
+            {
+              "index": 11,
+              "request_id": "vendor-5",
+              "actor": "agent.preavis-1794029520.testnet",
+              "payee": "vendor.preavis-1794029520.testnet",
+              "amount": "500000000000000000000",
+              "policy_version": 1,
+              "invoice": "invoice-vendor-5",
+              "status": "DENIED",
+              "reason": "TOTAL_CAP",
+              "needs_approval": false,
+              "releases": 0
+            }
+          ]
+        }
+      ],
+      "failures": [],
+      "receiver": "mandate.preavis-1794029520.testnet",
+      "actions": [
+        {
+          "FunctionCall": {
+            "method_name": "request_spend",
+            "args": "eyJyZXF1ZXN0X2lkIjoidmVuZG9yLTUiLCJwYXllZSI6InZlbmRvci5wcmVhdmlzLTE3OTQwMjk1MjAudGVzdG5ldCIsImFtb3VudCI6IjUwMDAwMDAwMDAwMDAwMDAwMDAwMCIsInBvbGljeV92ZXJzaW9uIjoxLCJpbnZvaWNlIjoiaW52b2ljZS12ZW5kb3ItNSJ9",
+            "gas": 100000000000000,
+            "deposit": "0"
+          }
+        }
+      ]
     },
     {
       "claim": "a rejected request releases its reservation once",
       "layer": "contract",
       "observed": "REJECTED, releases=1; a second reject panics NOT_AWAITING_APPROVAL",
-      "tx": "8XCaRMpHWPa3nTbyoGTfeMnQdqs9Wu6qWkNPFKycjoM",
-      "signer": "preavis-1794025012.testnet",
-      "tx_status": "success"
+      "tx": "EnMtLW5s1N8Bk1psAzBQpjDajQQ3q6rCNhtQaLr8jEPy",
+      "signer": "preavis-1794029520.testnet",
+      "tx_status": "success",
+      "events": [
+        {
+          "standard": "preavis",
+          "version": "2.0.0",
+          "event": "rejected",
+          "data": [
+            {
+              "index": 10,
+              "request_id": "hosting-1",
+              "actor": "agent.preavis-1794029520.testnet",
+              "payee": "hosting.preavis-1794029520.testnet",
+              "amount": "2500000000000000000000",
+              "policy_version": 1,
+              "invoice": "invoice-hosting-1",
+              "status": "REJECTED",
+              "reason": null,
+              "needs_approval": true,
+              "releases": 1
+            }
+          ]
+        }
+      ],
+      "failures": [],
+      "receiver": "mandate.preavis-1794029520.testnet",
+      "actions": [
+        {
+          "FunctionCall": {
+            "method_name": "reject",
+            "args": "eyJyZXF1ZXN0X2lkIjoiaG9zdGluZy0xIn0=",
+            "gas": 10000000000000,
+            "deposit": "0"
+          }
+        }
+      ]
     },
     {
       "claim": "nobody else can call the settlement callback",
       "layer": "contract",
       "observed": "panic: Method on_transfer is private",
-      "tx": "6vhPXzyyxiMT2KBK1AhqQ8f7T2rngtQxGbGvtWdHhJ2P",
-      "signer": "preavis-1794025012.testnet",
-      "tx_status": "failure"
+      "tx": "7ggyTKcFtgruydom2THqtfGm1CK49qT6Rqh2RcBHyX3C",
+      "signer": "preavis-1794029520.testnet",
+      "tx_status": "failure",
+      "events": [],
+      "failures": [
+        "Method on_transfer is private"
+      ],
+      "receiver": "mandate.preavis-1794029520.testnet",
+      "actions": [
+        {
+          "FunctionCall": {
+            "method_name": "on_transfer",
+            "args": "eyJpbmRleCI6MH0=",
+            "gas": 10000000000000,
+            "deposit": "0"
+          }
+        }
+      ]
     },
     {
       "claim": "end state: you received nothing; only settled requests moved money",
@@ -176,7 +773,298 @@
       "observed": "attacker +0, hosting +0, vendor +12 steps = 3 settled requests; committed 12 of 40",
       "tx": null,
       "signer": null,
-      "tx_status": null
+      "tx_status": null,
+      "events": null,
+      "failures": null
+    },
+    {
+      "claim": "locked: the mandate account has no access key, so nobody can redeploy it or move its balance outside the contract",
+      "layer": "protocol",
+      "observed": "deleted the deployer's full-access key; view_access_key_list: 0 keys",
+      "tx": "9cgVTZQRz1xTiTihLZY5cU1VyqBdjxxZYypbHJiieEgg",
+      "signer": "mandate.preavis-1794029520.testnet",
+      "tx_status": "success",
+      "events": [],
+      "failures": [],
+      "receiver": "mandate.preavis-1794029520.testnet",
+      "actions": [
+        {
+          "DeleteKey": {
+            "public_key": "ed25519:CKogtNwuDwHXXteonbpifxyEZWg1aFkedXSjcZCHTuTN"
+          }
+        }
+      ]
+    },
+    {
+      "claim": "after the lock the contract still works: an in-policy request settles",
+      "layer": "settlement",
+      "observed": "SETTLED; vendor balance +1 step exactly",
+      "tx": "DiPu4FVTQvEKBWQUSd6DohS9ZaN7j7NQUadT5pwGwhhG",
+      "signer": "agent.preavis-1794029520.testnet",
+      "tx_status": "success",
+      "events": [
+        {
+          "standard": "preavis",
+          "version": "2.0.0",
+          "event": "pending",
+          "data": [
+            {
+              "index": 12,
+              "request_id": "after-lock",
+              "actor": "agent.preavis-1794029520.testnet",
+              "payee": "vendor.preavis-1794029520.testnet",
+              "amount": "100000000000000000000",
+              "policy_version": 1,
+              "invoice": "invoice-after-lock",
+              "status": "PENDING",
+              "reason": null,
+              "needs_approval": false,
+              "releases": 0
+            }
+          ]
+        },
+        {
+          "standard": "preavis",
+          "version": "2.0.0",
+          "event": "settled",
+          "data": [
+            {
+              "index": 12,
+              "request_id": "after-lock",
+              "actor": "agent.preavis-1794029520.testnet",
+              "payee": "vendor.preavis-1794029520.testnet",
+              "amount": "100000000000000000000",
+              "policy_version": 1,
+              "invoice": "invoice-after-lock",
+              "status": "SETTLED",
+              "reason": null,
+              "needs_approval": false,
+              "releases": 0
+            }
+          ]
+        }
+      ],
+      "failures": [],
+      "receiver": "mandate.preavis-1794029520.testnet",
+      "actions": [
+        {
+          "FunctionCall": {
+            "method_name": "request_spend",
+            "args": "eyJyZXF1ZXN0X2lkIjoiYWZ0ZXItbG9jayIsInBheWVlIjoidmVuZG9yLnByZWF2aXMtMTc5NDAyOTUyMC50ZXN0bmV0IiwiYW1vdW50IjoiMTAwMDAwMDAwMDAwMDAwMDAwMDAwIiwicG9saWN5X3ZlcnNpb24iOjEsImludm9pY2UiOiJpbnZvaWNlLWFmdGVyLWxvY2sifQ==",
+            "gas": 100000000000000,
+            "deposit": "0"
+          }
+        }
+      ]
     }
-  ]
+  ],
+  "end_state": {
+    "mandate": {
+      "owner": "preavis-1794029520.testnet",
+      "agent": "agent.preavis-1794029520.testnet",
+      "refund_to": "treasury.preavis-1794029520.testnet",
+      "policy": {
+        "version": 1,
+        "payees": {
+          "ghost.preavis-1794029520.testnet": "1000000000000000000000",
+          "hosting.preavis-1794029520.testnet": "3000000000000000000000",
+          "vendor.preavis-1794029520.testnet": "3000000000000000000000"
+        },
+        "total_cap": "4000000000000000000000",
+        "approval_threshold": "1000000000000000000000",
+        "max_payments": 30,
+        "max_denials": 30
+      },
+      "committed": "1300000000000000000000",
+      "auto_committed": "900000000000000000000",
+      "held": "0",
+      "payee_committed": {
+        "ghost.preavis-1794029520.testnet": "0",
+        "hosting.preavis-1794029520.testnet": "0",
+        "vendor.preavis-1794029520.testnet": "1300000000000000000000"
+      },
+      "attempts": 13,
+      "payments": 6,
+      "denials": 7,
+      "denials_not_stored": 0,
+      "closed": false
+    },
+    "attempts": [
+      {
+        "index": 0,
+        "request_id": "pay-me",
+        "actor": "agent.preavis-1794029520.testnet",
+        "payee": "attacker.preavis-1794029520.testnet",
+        "amount": "100000000000000000000",
+        "policy_version": 1,
+        "invoice": "invoice-pay-me",
+        "status": "DENIED",
+        "reason": "UNLISTED",
+        "needs_approval": false,
+        "releases": 0
+      },
+      {
+        "index": 1,
+        "request_id": "old-policy",
+        "actor": "agent.preavis-1794029520.testnet",
+        "payee": "vendor.preavis-1794029520.testnet",
+        "amount": "100000000000000000000",
+        "policy_version": 2,
+        "invoice": "invoice-old-policy",
+        "status": "DENIED",
+        "reason": "POLICY_VERSION",
+        "needs_approval": false,
+        "releases": 0
+      },
+      {
+        "index": 2,
+        "request_id": "zero",
+        "actor": "agent.preavis-1794029520.testnet",
+        "payee": "vendor.preavis-1794029520.testnet",
+        "amount": "0",
+        "policy_version": 1,
+        "invoice": "invoice-zero",
+        "status": "DENIED",
+        "reason": "ZERO_AMOUNT",
+        "needs_approval": false,
+        "releases": 0
+      },
+      {
+        "index": 3,
+        "request_id": "buy-1",
+        "actor": "agent.preavis-1794029520.testnet",
+        "payee": "vendor.preavis-1794029520.testnet",
+        "amount": "400000000000000000000",
+        "policy_version": 1,
+        "invoice": "invoice-buy-1",
+        "status": "SETTLED",
+        "reason": null,
+        "needs_approval": false,
+        "releases": 0
+      },
+      {
+        "index": 4,
+        "request_id": "buy-1",
+        "actor": "agent.preavis-1794029520.testnet",
+        "payee": "vendor.preavis-1794029520.testnet",
+        "amount": "400000000000000000000",
+        "policy_version": 1,
+        "invoice": "invoice-buy-1",
+        "status": "DENIED",
+        "reason": "REPLAY",
+        "needs_approval": false,
+        "releases": 0
+      },
+      {
+        "index": 5,
+        "request_id": "buy-1",
+        "actor": "agent.preavis-1794029520.testnet",
+        "payee": "vendor.preavis-1794029520.testnet",
+        "amount": "900000000000000000000",
+        "policy_version": 1,
+        "invoice": "invoice-buy-1",
+        "status": "DENIED",
+        "reason": "ALTERED",
+        "needs_approval": false,
+        "releases": 0
+      },
+      {
+        "index": 6,
+        "request_id": "ghost-1",
+        "actor": "agent.preavis-1794029520.testnet",
+        "payee": "ghost.preavis-1794029520.testnet",
+        "amount": "200000000000000000000",
+        "policy_version": 1,
+        "invoice": "invoice-ghost-1",
+        "status": "FAILED",
+        "reason": null,
+        "needs_approval": false,
+        "releases": 1
+      },
+      {
+        "index": 7,
+        "request_id": "split-a",
+        "actor": "agent.preavis-1794029520.testnet",
+        "payee": "vendor.preavis-1794029520.testnet",
+        "amount": "400000000000000000000",
+        "policy_version": 1,
+        "invoice": "invoice-split-a",
+        "status": "SETTLED",
+        "reason": null,
+        "needs_approval": false,
+        "releases": 0
+      },
+      {
+        "index": 8,
+        "request_id": "split-b",
+        "actor": "agent.preavis-1794029520.testnet",
+        "payee": "vendor.preavis-1794029520.testnet",
+        "amount": "400000000000000000000",
+        "policy_version": 1,
+        "invoice": "invoice-split-b",
+        "status": "SETTLED",
+        "reason": null,
+        "needs_approval": true,
+        "releases": 0
+      },
+      {
+        "index": 9,
+        "request_id": "big-vendor",
+        "actor": "agent.preavis-1794029520.testnet",
+        "payee": "vendor.preavis-1794029520.testnet",
+        "amount": "2000000000000000000000",
+        "policy_version": 1,
+        "invoice": "invoice-big-vendor",
+        "status": "DENIED",
+        "reason": "PAYEE_CAP",
+        "needs_approval": false,
+        "releases": 0
+      },
+      {
+        "index": 10,
+        "request_id": "hosting-1",
+        "actor": "agent.preavis-1794029520.testnet",
+        "payee": "hosting.preavis-1794029520.testnet",
+        "amount": "2500000000000000000000",
+        "policy_version": 1,
+        "invoice": "invoice-hosting-1",
+        "status": "REJECTED",
+        "reason": null,
+        "needs_approval": true,
+        "releases": 1
+      },
+      {
+        "index": 11,
+        "request_id": "vendor-5",
+        "actor": "agent.preavis-1794029520.testnet",
+        "payee": "vendor.preavis-1794029520.testnet",
+        "amount": "500000000000000000000",
+        "policy_version": 1,
+        "invoice": "invoice-vendor-5",
+        "status": "DENIED",
+        "reason": "TOTAL_CAP",
+        "needs_approval": false,
+        "releases": 0
+      },
+      {
+        "index": 12,
+        "request_id": "after-lock",
+        "actor": "agent.preavis-1794029520.testnet",
+        "payee": "vendor.preavis-1794029520.testnet",
+        "amount": "100000000000000000000",
+        "policy_version": 1,
+        "invoice": "invoice-after-lock",
+        "status": "SETTLED",
+        "reason": null,
+        "needs_approval": false,
+        "releases": 0
+      }
+    ],
+    "balances": {
+      "vendor.preavis-1794029520.testnet": "51300000000000000000000",
+      "hosting.preavis-1794029520.testnet": "50000000000000000000000",
+      "attacker.preavis-1794029520.testnet": "50000000000000000000000",
+      "treasury.preavis-1794029520.testnet": "50000000000000000000000"
+    }
+  }
 }
