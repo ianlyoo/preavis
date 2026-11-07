@@ -1,6 +1,6 @@
 //! `npm run execute-testnet`: the mandate scenarios on NEAR testnet, with receipt links.
 //! Creates a fresh faucet-funded owner (random key, saved under the ignored .credentials/) unless
-//! KEYDARE_OWNER_CREDENTIALS points at a near-cli credential file of a funded testnet account.
+//! PREAVIS_OWNER_CREDENTIALS points at a near-cli credential file of a funded testnet account.
 mod common;
 
 use anyhow::{Context, Result};
@@ -12,16 +12,16 @@ use serde_json::json;
 #[tokio::test]
 #[ignore = "uses NEAR testnet and the faucet; run with `npm run execute-testnet`"]
 async fn execute_testnet() -> Result<()> {
-    let rpc = std::env::var("KEYDARE_TESTNET_RPC").unwrap_or_else(|_| "https://archival-rpc.testnet.near.org".into());
+    let rpc = std::env::var("PREAVIS_TESTNET_RPC").unwrap_or_else(|_| "https://test.rpc.fastnear.com".into());
     let worker = near_workspaces::testnet().rpc_addr(&rpc).await?;
-    let owner = match std::env::var("KEYDARE_OWNER_CREDENTIALS") {
+    let owner = match std::env::var("PREAVIS_OWNER_CREDENTIALS") {
         Ok(path) => Account::from_file(&path, &worker).with_context(|| path)?,
         Err(_) => {
-            let id = format!("keydare-{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?.as_secs());
+            let id = format!("preavis-{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?.as_secs());
             worker
                 .create_root_account_subaccount(id.parse()?, SecretKey::from_random(KeyType::ED25519))
                 .await
-                .context("faucet account creation (helper.testnet.near.org) failed; see README for KEYDARE_OWNER_CREDENTIALS")?
+                .context("faucet account creation (helper.testnet.near.org) failed; see README for PREAVIS_OWNER_CREDENTIALS")?
                 .into_result()?
         }
     };
@@ -30,7 +30,7 @@ async fn execute_testnet() -> Result<()> {
     owner.store_credentials(&keys).await?;
     println!("owner {} (credentials saved under {keys}/, not printed)", owner.id());
 
-    let wasm = std::fs::read("res/keydare.wasm")?;
+    let wasm = std::fs::read("res/preavis.wasm")?;
     let mut w = setup(worker, owner, NEAR / 10_000, NearToken::from_near(5), &wasm, true).await?;
     w.mandate.as_account().store_credentials(&keys).await?;
     main_flow(&mut w).await?;
@@ -48,7 +48,7 @@ async fn execute_testnet() -> Result<()> {
         "step_yocto": w.step.to_string(),
         "claims": w.ev.rows,
     });
-    std::fs::write("target/keydare-testnet-run.json", serde_json::to_string_pretty(&record)?)?;
-    println!("\nKeyDare testnet: {} claims held, 0 broken. Run record: target/keydare-testnet-run.json", w.ev.rows.len());
+    std::fs::write("target/preavis-testnet-run.json", serde_json::to_string_pretty(&record)?)?;
+    println!("\nPreavis testnet: {} claims held, 0 broken. Run record: target/preavis-testnet-run.json", w.ev.rows.len());
     Ok(())
 }

@@ -45,8 +45,11 @@ impl Evidence {
         if let (true, Some(tx)) = (self.testnet, &tx) {
             println!("         https://testnet.nearblocks.io/txns/{tx}");
         }
-        let status = tx.as_ref().and(result).map(|r| if r.is_success() { "success" } else { "failure" });
-        self.rows.push(json!({"claim": claim, "layer": layer, "observed": observed, "tx": tx, "tx_status": status}));
+        let status = result.map(|r| if r.is_success() { "success" } else { "failure" });
+        let signer = result.map(|r| r.outcome().executor_id.to_string());
+        self.rows.push(json!({
+            "claim": claim, "layer": layer, "observed": observed, "tx": tx, "signer": signer, "tx_status": status,
+        }));
     }
 }
 
