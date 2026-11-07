@@ -118,6 +118,17 @@ other than what the agent asked for, or for another invoice.
    and `npm run owner -- show` prints the invoice bytes behind the hash before the owner signs.
 11. **The callback's own failure.** If `on_transfer` itself fails, the charge stays frozen and visible
    (VERIFY 28). There is no method to unfreeze it; that amount is lost to the budget, not paid twice.
+12. **An extreme `period_blocks` breaks the `mandate` view.** `new` accepts any nonzero
+   `period_blocks` (`src/lib.rs:189`), and the `mandate` view computes the reset height as
+   `period_start + period_blocks` (`src/lib.rs:416`). Counterexample from an independent review:
+   `period_blocks = 18446744073709551615` (`u64::MAX`) with `expires_at` = current height + 1000
+   initializes, and every `mandate()` call then panics with `attempt to add with overflow`. Only the
+   summary view is lost: the policy is the owner's own configuration, fixed at init; the spending
+   checks still run (one 1-yocto payment settles within a 1-yocto cap, the next is denied), so there
+   is no fund risk. The deployed mandates use 1,008,000-block periods and their views work
+   (`observe-testnet`). Not changed in this version, because the contract and its deployment are
+   fixed; `tests/limits.rs` pins the current behavior, so a future contract version that rejects such
+   a period at init (or saturates the reset height) will fail that test and must update this entry.
 
 ## Why on-chain
 
