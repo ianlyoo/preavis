@@ -28,3 +28,10 @@
 - **The model proposes, the contract disposes.** A prompt-injected agent is expected; the demo sends
   the injected payment regardless of what the model chose, so the guarantee does not depend on the
   model.
+- **A lifetime limit is a wedge.** One flood used up the v0.9 mandate's payment slots for good.
+  Limits an untrusted caller can use up should reset with the block height and say when.
+- **Check the bytes, not only the source.** The exports showed no admin method, but the high-level
+  promise API still linked `deploy_contract` and `add_key` into the wasm. Reading the import section
+  turns "no admin path" into a property of the deployed code.
+- **Measure after the refund.** A function-call key's allowance drops by the prepaid gas first and
+  comes back a few blocks later; a reading taken at once is wrong by three orders of magnitude.

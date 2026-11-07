@@ -81,6 +81,33 @@ Two independent outside reviews of v0.8 found real gaps. The fixes, in order:
   stays offline with the owner, as the switch for firing the agent. No testnet secret key is
   published.
 
+## 2026-11-07, v1.0: the second judge round's fixes
+
+- **Windows, not lifetimes.** The agent's own budget, its request slots and the stored denials are
+  now per period of `period_blocks`. A flood exhausts one window (`DENIED EXHAUSTED`, visible as
+  `exhausted` and `resets_at` in `mandate()`), and the next one starts fresh. Held requests reserve
+  nothing; an approval is checked against the caps when it happens. `expires_at` lets anyone close
+  the mandate to `refund_to` once it passes, which also answers "the owner lost their key".
+- **No admin path, from the bytes.** Transfers and the callback go through `env::promise_*`
+  directly. The wasm now imports 22 host functions, all on an allowlist, and no deploy, key or
+  function-call action. `no_admin_surface` checks the committed wasm; `observe-testnet` reads the
+  deployed code back with `view_code` and checks the same list. The v0.9 mandate fails that check.
+- **A real owner step.** `npm run agent` and `npm run owner` are separate programs over a local node
+  that keeps its state on disk. The owner sees the invoice bytes, hash, payee and amount before
+  signing. The inbox gained a split payment, a changed payment account and an allowlisted
+  wrong-purpose invoice that is paid; the run prints proposed actions next to measured transfers.
+  The model is pinned (`scripts/local-model.sh`) and the recording was made again with it.
+- **The wording.** You control the agent's signing in the sandbox; the key printed is its public
+  half.
+- **arm64.** `CARGO_BUILD_JOBS` goes into the build container (1 under emulation); the byte
+  comparison stays the same.
+- **A standing challenge, prepared but not published.** `c1.preavis-challenge-1794034196.testnet`,
+  locked, with per-day windows, a gas allowance sized for the judging window, a timed rotation
+  (deploy 26 s, retire 5 s) and an observer counter "attempts so far / paid to attackers". The key
+  stays in the ignored `.credentials/` until the owner decides ([challenge.md](challenge.md)).
+- **15:49, the lock.** The v1.0 testnet run (24 claims) ended by deleting the mandate's last key
+  (`2zs58UkW3s1DqVde7zm9wMWAs5RT8MJ9sB9AQkxcd5oF`).
+
 ## Not done yet
 
 The video, the post and the submission form.
