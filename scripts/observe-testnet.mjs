@@ -6,12 +6,23 @@
 // reason and the transfers the mandate sent. This script fetches each transaction from the chain,
 // reduces it the same way, and fails on any difference. Then it re-reads the end state (views and
 // balances), recomputes the totals from the stored attempts, and fails unless the mandate account
-// has no access key left. Exit code: 0 only if every check holds.
-import { readFileSync } from "node:fs";
+// has no access key left. It also reads the deployed code itself (view_code) and fails on any
+// host-function import outside the allowlist tests/verify.rs keeps (no deploy, no key, no
+// function-call action exists in the code). Last, if testnet/challenge.json exists, the standing
+// challenge mandate: its lock, keys, policy, today's window and the counter
+// "attempts so far / paid to attackers". Exit code: 0 only if every check holds.
+// Usage: node scripts/observe-testnet.mjs [receipts.json] [challenge.json | none]
+import { existsSync, readFileSync } from "node:fs";
 import { base58, query, rpc, sha256, view } from "./near-rpc.mjs";
+import { wasmImports } from "./wasm-imports.mjs";
 
 const record = JSON.parse(readFileSync(process.argv[2] ?? "testnet/receipts.json", "utf8"));
 const mandate = record.mandate;
+const challengeFile = process.argv[3] ?? "testnet/challenge.json";
+const challenge = challengeFile !== "none" && existsSync(challengeFile) ? JSON.parse(readFileSync(challengeFile, "utf8")) : null;
+// The one allowlist, read from the test that checks the local build against it.
+const allowedImports = [...readFileSync("tests/verify.rs", "utf8")
+  .match(/ALLOWED_IMPORTS: \[&str; \d+\] = \[([^\]]*)\]/)[1].matchAll(/"([a-z0-9_]+)"/g)].map((m) => m[1]);
 
 // JSON with sorted keys, so recorded and re-read values compare independent of key order.
 const canon = (v) => Array.isArray(v) ? `[${v.map(canon).join(",")}]`
@@ -56,6 +67,25 @@ const describeAction = (a) => {
   const [kind, body] = Object.entries(a)[0];
   return `${kind} ${body?.public_key ?? ""}`.trim();
 };
+// The deployed code's host imports, read from the chain: every one must be on the allowlist.
+const checkImports = async (account) => {
+  let imports = [];
+  try {
+    imports = wasmImports(Buffer.from((await query({ request_type: "view_code", account_id: account })).code_base64, "base64"));
+  } catch (error) {
+    imports = [`(no code: ${error.message.slice(0, 80)})`];
+  }
+  const outside = imports.filter((i) => !(i.startsWith("env.") && allowedImports.includes(i.slice(4))));
+  check(imports.length > 0 && outside.length === 0,
+    `${account}: the deployed code imports only allowlisted host functions (view_code, ${imports.length} imports)`,
+    outside.length
+      ? outside.map((i) => `NOT ALLOWED: ${i}`)
+      : "none of deploy_contract, add_key_*, delete_key, function_call, stake, delete_account: nothing in the code can add a key, redeploy, or call another contract");
+};
+// Live fields of mandate(): they follow the block height, so they are checked for consistency with
+// the recorded state at the current height instead of compared byte for byte.
+const LIVE = ["period", "period_start", "resets_at", "period_committed", "period_payments", "period_denials", "exhausted", "expired"];
+const finalBlock = async () => (await rpc("block", { finality: "final" })).header;
 const describeEvent = (e) => `${e.event}${e.data[0].request_id ? ` ${e.data[0].request_id}` : ""}${e.data[0].reason ? ` ${e.data[0].reason}` : ""}`;
 
 console.log(`Observing ${mandate} on testnet (recorded run of ${new Date(record.recorded_at_unix * 1000).toISOString()})\n`);
@@ -69,6 +99,8 @@ const isContract = account.code_hash !== "11111111111111111111111111111111";
 check(account.code_hash === localHash && record.code_sha256 === sha256(wasm).toString("hex"),
   "deployed code hash equals sha256 of res/preavis.wasm (the reproducible build of the commit below)",
   [`chain ${account.code_hash}, local ${localHash}`, `source: NEP-330 build info names commit ${rev}; rebuild it with npm run verify:reproducible`]);
+
+await checkImports(mandate);
 
 // 2. The keys.
 const agentKeys = (await query({ request_type: "view_access_key_list", account_id: record.agent })).keys;
@@ -99,7 +131,10 @@ for (const claim of record.claims.filter((c) => c.tx)) {
   ]);
 }
 for (const claim of record.claims.filter((c) => !c.tx)) {
-  console.log(`INFO  ${claim.claim}\n      no transaction (refused before execution): ${claim.observed}`);
+  const why = claim.layer === "protocol"
+    ? "no transaction: the network refused to accept it, so nothing reached the chain"
+    : "no transaction: a statement about the end state, re-checked from the chain below";
+  console.log(`INFO  ${claim.claim}\n      ${why}: ${claim.observed}`);
 }
 
 // 4. The end state.
@@ -110,19 +145,48 @@ const summary = isContract ? await view(mandate, "mandate", {}) : empty;
 const attempts = isContract ? await view(mandate, "attempts", { from: 0, limit: 100 }) : [];
 check(isContract, `${mandate} runs a contract`);
 const end = record.end_state ?? {};
-check(same(summary, end.mandate), "mandate() equals the recorded end state",
+const head = await finalBlock();
+const strip = (m) => Object.fromEntries(Object.entries(m ?? {}).filter(([k]) => !LIVE.includes(k)));
+check(same(strip(summary), strip(end.mandate)), "mandate() equals the recorded end state (fields that do not follow the block height)",
   `committed ${near(summary.committed)} of ${near(summary.policy.total_cap)}; held ${near(summary.held)}; payments ${summary.payments}, denials ${summary.denials}`);
+const live = (s, rec, height) => {
+  const p = s.policy;
+  if (!rec || !p?.period_blocks) return ["no recorded period"];
+  const start = rec.period_start - rec.period * p.period_blocks;
+  const period = Math.floor((height - start) / p.period_blocks);
+  const same_period = s.period === rec.period;
+  const problems = [];
+  // The view may be served a block or two apart from the header read here.
+  if (Math.abs(s.period - period) > 1 || s.period < rec.period) problems.push(`period ${s.period}, expected ${period} at height ${height}`);
+  if (s.period_start !== start + s.period * p.period_blocks || s.resets_at !== s.period_start + p.period_blocks) problems.push("period_start / resets_at");
+  if (same_period ? !(s.period_committed === rec.period_committed && s.period_payments === rec.period_payments && s.period_denials === rec.period_denials)
+    : !(s.period_committed === "0" && s.period_payments === 0 && s.period_denials === 0)) problems.push("period counters");
+  if (s.exhausted !== (s.period_payments >= p.max_payments)) problems.push("exhausted");
+  if (Math.abs(height - p.expires_at) > 2 && s.expired !== (height >= p.expires_at)) problems.push("expired");
+  return problems;
+};
+const liveProblems = live(summary, end.mandate, head.height);
+check(liveProblems.length === 0, "the window fields (period, resets_at, period counters, exhausted, expired) are consistent with the recorded state at the current height",
+  [`height ${head.height}: period ${summary.period} (blocks ${summary.period_start}..${summary.resets_at}); this period: ${near(summary.period_committed ?? "0")} committed, ${summary.period_payments} payments, ${summary.period_denials} denials stored${summary.exhausted ? ", EXHAUSTED" : ""}${summary.expired ? ", EXPIRED" : ""}`,
+   ...liveProblems.map((p) => `INCONSISTENT: ${p}`)]);
 check(same(attempts, end.attempts), `attempts() equals the ${end.attempts?.length ?? 0} recorded attempts`);
 
-const charged = attempts.filter((a) => ["AWAITING_APPROVAL", "PENDING", "SETTLED"].includes(a.status));
 const sum = (list) => list.reduce((s, a) => s + BigInt(a.amount), 0n);
-const perPayee = {};
-for (const a of charged) perPayee[a.payee] = (perPayee[a.payee] ?? 0n) + BigInt(a.amount);
-const committedOk = BigInt(summary.committed) === sum(charged)
-  && BigInt(summary.held) === sum(charged.filter((a) => a.status === "AWAITING_APPROVAL"))
-  && Object.keys(perPayee).length === Object.keys(summary.payee_committed).filter((p) => summary.payee_committed[p] !== "0").length
-  && Object.entries(perPayee).every(([p, v]) => BigInt(summary.payee_committed[p] ?? 0) === v);
-check(committedOk, "committed, held and payee_committed equal the sums of the stored attempts that hold a charge",
+// Charged: committed and paid (or in flight). A held request reserves nothing until it is approved.
+const chargeOk = (summary, attempts) => {
+  const charged = attempts.filter((a) => ["PENDING", "SETTLED"].includes(a.status));
+  const perPayee = {};
+  for (const a of charged) perPayee[a.payee] = (perPayee[a.payee] ?? 0n) + BigInt(a.amount);
+  return {
+    perPayee,
+    ok: BigInt(summary.committed) === sum(charged)
+      && BigInt(summary.held) === sum(attempts.filter((a) => a.status === "AWAITING_APPROVAL"))
+      && Object.keys(perPayee).length === Object.keys(summary.payee_committed).filter((p) => summary.payee_committed[p] !== "0").length
+      && Object.entries(perPayee).every(([p, v]) => BigInt(summary.payee_committed[p] ?? 0) === v),
+  };
+};
+const { perPayee, ok: committedOk } = chargeOk(summary, attempts);
+check(committedOk, "committed and payee_committed equal the sums of the settled and in-flight attempts; held equals the sum of those awaiting approval",
   Object.entries(summary.payee_committed).map(([p, v]) => `${p}: ${near(v)} committed (attempts: ${near(perPayee[p] ?? 0n)})`));
 check(BigInt(summary.committed) <= BigInt(summary.policy.total_cap)
   && Object.entries(summary.payee_committed).every(([p, v]) => BigInt(v) <= BigInt(summary.policy.payees[p] ?? 0)),
@@ -152,8 +216,83 @@ console.log("\nOn-chain attempts:");
 console.table(attempts.map((a) => ({ request_id: a.request_id, payee: a.payee.split(".")[0],
   NEAR: Number(BigInt(a.amount)) / 1e24, status: a.status, reason: a.reason ?? "" })));
 
+// 6. The standing challenge, if one is recorded: a separate mandate, separate accounts and keys,
+// nothing shared with the run above or with the local sandbox.
+let counter = "";
+if (challenge) {
+  const c = challenge;
+  console.log(`\nThe standing challenge: ${c.mandate} (deployed ${new Date(c.created_at_unix * 1000).toISOString()})`);
+  const acct = await query({ request_type: "view_account", account_id: c.mandate }).catch(() => null);
+  check(acct?.code_hash === localHash && c.code_sha256 === sha256(wasm).toString("hex"),
+    "challenge: deployed code hash equals sha256 of res/preavis.wasm", `chain ${acct?.code_hash}, local ${localHash}`);
+  await checkImports(c.mandate);
+  const keys = (await query({ request_type: "view_access_key_list", account_id: c.mandate }).catch(() => ({ keys: [{}] }))).keys;
+  check(keys.length === 0, keys.length === 0 ? `challenge: locked, no key can sign for ${c.mandate}` : `challenge: NOT LOCKED: ${keys.length} key(s)`);
+
+  const agentKeys = (await query({ request_type: "view_access_key_list", account_id: c.agent })).keys;
+  const fcKeys = agentKeys.filter((k) => k.access_key.permission.FunctionCall);
+  const fcp = fcKeys[0]?.access_key.permission.FunctionCall;
+  const full = agentKeys.filter((k) => k.access_key.permission === "FullAccess").map((k) => k.public_key);
+  check(fcKeys.length === 1 && fcKeys[0].public_key === c.agent_public_key && fcp.receiver_id === c.mandate
+    && fcp.method_names.join() === "request_spend" && full.join() === c.agent_offline_public_key,
+    "challenge: the agent's challenge key is function-call only (request_spend on the mandate); the only other key is the offline full-access key",
+    agentKeys.map((k) => `${k.public_key} ${JSON.stringify(k.access_key.permission)}`));
+  const allowance = fcp?.allowance == null ? null : BigInt(fcp.allowance);
+  const perCall = BigInt(c.calibration.allowance_used_yocto);
+  const used = allowance === null ? 0n : BigInt(c.allowance_yocto) - allowance;
+
+  const s = await view(c.mandate, "mandate", {}).catch(() => null);
+  const all = [];
+  for (let from = 0; s && from < s.attempts; from += 100) all.push(...await view(c.mandate, "attempts", { from, limit: 100 }));
+  const allowlisted = new Set(c.allowlisted);
+  check(s && same(s.policy, c.policy) && s.agent === c.agent && s.refund_to === c.refund_to && s.owner === c.owner,
+    "challenge: the policy, agent and refund account equal the recorded ones (the code has no method that changes them)",
+    s && `allowlisted: ${Object.entries(s.policy.payees).map(([p, v]) => `${p} up to ${near(v)}`).join(", ")}; total ${near(s.policy.total_cap)}; ${near(s.policy.approval_threshold)} a day without the owner`);
+  if (s) {
+    const { ok } = chargeOk(s, all);
+    check(ok && all.length === s.attempts, "challenge: committed, held and per-payee totals equal the sums of all stored attempts",
+      `${all.length} stored attempts; committed ${near(s.committed)}, held ${near(s.held)}`);
+    check(BigInt(s.committed) <= BigInt(s.policy.total_cap)
+      && Object.entries(s.payee_committed).every(([p, v]) => BigInt(v) <= BigInt(s.policy.payees[p] ?? 0)),
+      "challenge: no cap is exceeded");
+    // Paid to attackers: what left the mandate for anyone outside the allowlist. Two independent reads:
+    // the stored attempts, and the balance (it may only fall by what the attempts say was paid; it
+    // rises with the contract's share of the gas the calls burn).
+    const toOthers = all.filter((a) => ["PENDING", "SETTLED", "AWAITING_APPROVAL"].includes(a.status) && !allowlisted.has(a.payee));
+    const paidOut = sum(all.filter((a) => ["PENDING", "SETTLED"].includes(a.status)));
+    const balance = BigInt(acct?.amount ?? 0);
+    const floor = BigInt(c.mandate_start_balance) - paidOut;
+    const unexplained = floor > balance ? floor - balance : 0n;
+    const paidToAttackers = sum(toOthers) + unexplained;
+    check(toOthers.length === 0 && unexplained === 0n,
+      "challenge: paid to attackers is 0: no attempt to a non-allowlisted account got past the checks, and the balance fell by no more than the allowlisted payments",
+      [`balance ${near(balance)} = start ${near(c.mandate_start_balance)} - paid to allowlisted ${near(paidOut)} + ${near(balance - floor > 0n ? balance - floor : 0n)} gas rewards`,
+       ...toOthers.map((a) => `PAID OUTSIDE THE MANDATE: ${a.request_id} ${near(a.amount)} -> ${a.payee} (${a.status})`)]);
+
+    const now = await finalBlock();
+    const msPerBlock = (Number(now.timestamp_nanosec) / 1e6 - c.created_at_unix * 1000) / (now.height - c.created_at_height);
+    const at = (height) => new Date(Number(now.timestamp_nanosec) / 1e6 + (height - now.height) * msPerBlock).toISOString().slice(0, 16).replace("T", " ") + " UTC";
+    const problems = live(s, { period_start: s.period_start - s.period * s.policy.period_blocks, period: 0 }, now.height)
+      .filter((p) => !p.startsWith("period counters"));
+    check(problems.length === 0 && !s.closed,
+      `challenge: today's window ${s.period}: ${s.period_payments}/${s.policy.max_payments} payments, ${s.period_denials}/${s.policy.max_denials} denials stored, ${near(s.period_committed)} of ${near(s.policy.approval_threshold)} committed${s.exhausted ? "; EXHAUSTED" : ""}`,
+      [s.exhausted
+        ? `EXHAUSTED: no more requests are accepted until block ${s.resets_at} (about ${at(s.resets_at)}); then a fresh window opens`
+        : `the window resets at block ${s.resets_at} (about ${at(s.resets_at)}); a flood exhausts only this window`,
+       `expires at block ${s.policy.expires_at} (about ${at(s.policy.expires_at)}); after that anyone may close() it, which refunds ${c.refund_to}${s.expired ? "; EXPIRED" : ""}`,
+       `height ${now.height}, measured ${msPerBlock.toFixed(0)} ms per block since deployment`,
+       ...problems.map((p) => `INCONSISTENT: ${p}`)]);
+    const calls = s.attempts + s.denials_not_stored - 1;
+    check(allowance !== null, `challenge: the key's gas allowance left: ${allowance === null ? "unlimited (not expected)" : near(allowance)} of ${near(c.allowance_yocto)}`,
+      `used ${near(used)} ≈ ${perCall ? (used / perCall).toString() : "?"} calls at the calibrated ${near(perCall)} net per call; while a call is in flight it holds up to ${near(c.calibration.allowance_in_flight_yocto)}`);
+    counter = `attempts so far: ${calls} / paid to attackers: ${paidToAttackers === 0n ? "0" : near(paidToAttackers)}`;
+    console.log(`\n  ${counter}`);
+    console.log(`  (requests the contract recorded since the lock, not counting the deployer's calibration call; ${s.payments} paid to the allowlist, ${s.denials} denied, ${s.denials_not_stored} denials over the daily record limit counted but not stored)`);
+  }
+}
+
 const claims = record.claims.filter((c) => c.tx).length;
 console.log(failed
   ? `\nFAILED: ${failed} check(s) do not match the chain.`
-  : `\nOK: ${claims} recorded transactions match the chain; end state re-read; locked: no key can sign for it; code hash ${localHash} = reproducible build of ${rev?.slice(0, 12)}.`);
+  : `\nOK: ${claims} recorded transactions match the chain; end state re-read; locked: no key can sign for it; code hash ${localHash} = reproducible build of ${rev?.slice(0, 12)}; imports allowlisted.${counter ? ` Challenge: ${counter}.` : ""}`);
 process.exit(failed ? 1 : 0);
