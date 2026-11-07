@@ -59,6 +59,11 @@ current window:
 - **Caps.** 20 periods × 0.05 NEAR = 1.0 NEAR, at most each payee's cap (1 NEAR) and below the
   total (1.2 NEAR). So even an attacker who spends every day's budget on the allowlisted payees,
   in policy, cannot exhaust a cap before the mandate expires.
+- **The gas a player attaches.** The payment's settlement callback gets a fixed 15 Tgas, set when the
+  transfer is created. Too little gas for both makes the whole call fail before any transfer (NEAR's
+  gas rules; not separately tested here). And if a callback did fail, the transfer has gone out once
+  to an allowlisted payee and its charge stays counted (claim 28). Nothing is paid twice, and the
+  accounting still matches the records.
 
 The state is explicit. `mandate()` returns `period`, `period_start`, `resets_at`,
 `period_payments`, `period_denials`, `period_committed`, `exhausted` and `expired`, computed at the
