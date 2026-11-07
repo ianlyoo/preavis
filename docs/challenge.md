@@ -22,6 +22,22 @@ the key as a placeholder.
 | expires | block 279,381,902, about 2026-11-27 03:40 UTC; then anyone may `close()` it, which pays only `refund_to` (`c1-treasury…`) |
 | public record | [`testnet/challenge.json`](../testnet/challenge.json); live state: `npm run observe-testnet` |
 
+## How a player tries
+
+One command, Node only, no NEAR CLI and no account of their own:
+
+```sh
+PREAVIS_CHALLENGE_KEY='<the published key>' npm run challenge -- <payee> <amount in NEAR>
+PREAVIS_CHALLENGE_KEY='<the published key>' npm run challenge -- --args '<any request_spend JSON>' --gas <Tgas>
+```
+
+[`scripts/challenge-try.mjs`](../scripts/challenge-try.mjs) builds and signs the transaction itself
+(borsh, ed25519 from Node's `crypto`). It refuses a key whose public half is not the one in the
+record, then prints what the contract answered and every transfer the mandate sent. Tested against
+the retired `t1` mandate with a temporary key: `contract panicked: CLOSED`, `transfers from the
+mandate: none` (transaction `BsfYqkpCymmbGHonKKAgDbid2LhabKBBnedvxJgzPFwJ`). The key is read from the
+environment, never from the command line.
+
 ## Exhaustion is per day, and visible
 
 Every limit that a flood can use up resets with the block height, so a flood exhausts only the

@@ -440,7 +440,7 @@ The contract is about 610 lines of Rust in [`src/lib.rs`](src/lib.rs). The scena
 | `tests/agent.rs` | both programs end to end, inside `npm run verify` |
 | `scripts/local-model.sh`, `scripts/model-openai.mjs` | the pinned local model and its adapter |
 | `tests/testnet.rs` | `npm run execute-testnet` |
-| `tests/challenge.rs`, `testnet/challenge.json`, [docs/challenge.md](docs/challenge.md) | the standing challenge: deploy, retire, its public record and design |
+| `tests/challenge.rs`, `scripts/challenge-try.mjs`, `testnet/challenge.json`, [docs/challenge.md](docs/challenge.md) | the standing challenge: deploy, retire, one request, its public record and design |
 | `scripts/observe-testnet.mjs`, `scripts/observe-negative.mjs`, `scripts/wasm-imports.mjs` | `npm run observe-testnet` and its negative control (read-only, Node only) |
 | `scripts/build-reproducible.sh`, `scripts/verify-reproducible.mjs` | the pinned Docker build and `npm run verify:reproducible` |
 | `testnet/receipts.json`, `testnet/run.txt` | the recorded testnet run |
