@@ -2,7 +2,7 @@
   "name": "preavis",
   "version": "1.0.0",
   "private": true,
-  "description": "You sign for our agent. Try to make it pay you. A spending mandate for AI agents on NEAR.",
+  "description": "One command gives you our agent's key in a local NEAR sandbox. Try to make it pay you. A spending mandate for AI agents on NEAR.",
   "engines": {
     "node": ">=18"
   },

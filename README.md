@@ -1,6 +1,6 @@
 # Préavis
 
-**You sign for our agent. Try to make it pay you.**
+**One command gives you our agent's key in a local NEAR sandbox. Try to make it pay you.**
 
 *You control the agent. You cannot exceed its authority.*
 
@@ -14,15 +14,16 @@ your machine, and that key signs every agent call in the run: in the sandbox, yo
 agent's signing. The key it prints is the public half; the secret half never leaves your machine.
 Every claim below is checked by a command you can run, and a false claim would fail that command.
 
-*Préavis* is French for "advance notice": we announce the heist and hand you the agent.
+*Préavis* is French for "advance notice": we announce the heist and hand you the agent, in a local sandbox.
 
 Status: **v1.0, NEAR testnet only.** The live mandate
 [`mandate.preavis-1794034063.testnet`](https://testnet.nearblocks.io/address/mandate.preavis-1794034063.testnet)
 is **locked**: its last access key was deleted, so nobody, us included, can sign for it, redeploy it
 or move its balance except through the contract's own rules. Its deployed code imports no host
 function that could deploy code, add a key or call another contract. `npm run observe-testnet`
-checks both and fails otherwise. A second locked mandate is deployed as a standing challenge; its
-key is not published ([docs/challenge.md](docs/challenge.md)).
+checks both and fails otherwise. A second mandate, prepared as a public challenge on testnet, was
+never published and is retired: its key is deleted and the mandate closed
+([docs/challenge.md](docs/challenge.md)).
 
 ## 1. Verify everything in one command
 
@@ -49,8 +50,7 @@ NEAR sandbox, deploys the committed `res/preavis.wasm` (the same bytes as on tes
 agent's key on your machine, and asserts every scenario on contract state, balances and execution
 outcomes. It also runs the attack suite and the agent and owner programs end to end. You need no
 account, secret or paid API. The first run downloads Rust 1.99.1, the crates and the NEAR sandbox
-binary (nearcore 2.14.0), so it needs a network connection. Nothing in it touches testnet or the
-challenge mandate.
+binary (nearcore 2.14.0), so it needs a network connection. Nothing in it touches testnet.
 
 Where it was run:
 
@@ -58,9 +58,9 @@ Where it was run:
   this paragraph) in a clean `ubuntu:24.04` container, following the steps above: `npm run verify`
   exited 0 in 280 s, apt packages, rustup, downloads and compilation included. It ended
   `Preavis verify: 35 claims held, 0 broken.`
-- **arm64 (Apple Silicon, v0.9, measured by the second judge round):** `npm run verify` exited 0 in
-  190 s including downloads. v1.0 changes nothing that depends on the host
-  architecture; we have no arm64 host and did not re-run it. `npm run verify:reproducible` there:
+- **arm64:** v1.0 in a clean `ubuntu:24.04` container on Apple Silicon (colima), run by an
+  independent reviewer on 2026-11-07: `npm run verify` exited 0 in 124 s including downloads and
+  ended `Preavis verify: 35 claims held, 0 broken.` `npm run verify:reproducible` on arm64:
   [below](#reproducible-build).
 
 Expected output (abridged; keys and block numbers differ per run):
@@ -289,7 +289,9 @@ chain and fails on any difference. It then:
 - reads the deployed code itself (`view_code`) and fails on any host import outside the allowlist
   that `no_admin_surface` applies to the committed wasm.
 
-Then it does the same for the challenge mandate, and prints its live counter.
+Then it checks the retired challenge mandate: its function-call key is gone (the deletion
+transaction is re-read), it is closed, the close sent its remainder only to `refund_to`, and nothing
+was paid to anyone outside its allowlist.
 
 ```text
 Observing mandate.preavis-1794034063.testnet on testnet (recorded run of 2026-11-07T06:49:50.000Z)
@@ -305,13 +307,15 @@ INFO  the agent's key cannot attach a deposit
 ...
 OK    locked: no key can sign for mandate.preavis-1794034063.testnet
 ...
-OK    challenge: paid to attackers is 0: no attempt to a non-allowlisted account got past the checks, and the balance fell by no more than the allowlisted payments
-OK    challenge: today's window 0: 0/10 payments, 1/40 denials stored, 0.000000 NEAR of 0.050000 NEAR committed
-      the window resets at block 276740925 (about 2026-11-08 07:29 UTC); a flood exhausts only this window
+OK    challenge: retired: transaction 95y8ARUx4CjZ6HkTBuLWk5x6xP68UZ6zJQ6G3ktUYKPA deleted that key
+OK    challenge: retired: transaction F9QHYYWiJRXtvGTiAspDkybLGQLzp9zJi4qxoCWLoDa5 closed the mandate and sent 6.304011 NEAR to c1-treasury.preavis-challenge-1794034196.testnet, nothing to anyone else
 ...
-  attempts so far: 0 / paid to attackers: 0
+OK    challenge: paid to attackers is 0: no attempt to a non-allowlisted account got past the checks, and the balance fell by no more than the allowlisted payments and the refund
+OK    challenge: retired: mandate() reports closed; nothing can be requested or approved any more
 
-OK: 21 recorded transactions match the chain; end state re-read; locked: no key can sign for it; code hash HYTrsLM8vmnBYBEo236nCxSY1ouRpUdFvF6jB7QgzkhU = reproducible build of 911619475185; imports allowlisted. Challenge: attempts so far: 0 / paid to attackers: 0.
+  retired, never published; attempts: 0 / paid to attackers: 0
+
+OK: 21 recorded transactions match the chain; end state re-read; locked: no key can sign for it; code hash HYTrsLM8vmnBYBEo236nCxSY1ouRpUdFvF6jB7QgzkhU = reproducible build of 911619475185; imports allowlisted. Challenge: retired, never published; attempts: 0 / paid to attackers: 0.
 ```
 
 To see it fail, run `npm run observe-testnet:negative`. It feeds the observer six altered records
@@ -349,7 +353,7 @@ Testnet NEAR has no value; nothing here touches mainnet.
   `PREAVIS_TESTNET_RPC=<another testnet RPC>`. The run creates fresh subaccounts, so after a failed run
   start again with a fresh owner rather than resuming.
 
-`npm run challenge-deploy` and `npm run challenge-retire` deploy and retire a standing challenge
+`npm run challenge-deploy` and `npm run challenge-retire` deployed and retired the challenge
 mandate the same way ([docs/challenge.md](docs/challenge.md)).
 
 ## How it works
@@ -443,14 +447,14 @@ The contract is about 610 lines of Rust in [`src/lib.rs`](src/lib.rs). The scena
 | `tests/agent.rs` | both programs end to end, inside `npm run verify` |
 | `scripts/local-model.sh`, `scripts/model-openai.mjs` | the pinned local model and its adapter |
 | `tests/testnet.rs` | `npm run execute-testnet` |
-| `tests/challenge.rs`, `scripts/challenge-try.mjs`, `testnet/challenge.json`, [docs/challenge.md](docs/challenge.md) | the standing challenge: deploy, retire, one request, its public record and design |
+| `tests/challenge.rs`, `scripts/challenge-try.mjs`, `testnet/challenge.json`, [docs/challenge.md](docs/challenge.md) | the challenge mandate (never published, retired): deploy, retire, one request, its public record and a design note |
 | `scripts/observe-testnet.mjs`, `scripts/observe-negative.mjs`, `scripts/wasm-imports.mjs` | `npm run observe-testnet` and its negative control (read-only, Node only) |
 | `scripts/build-reproducible.sh`, `scripts/verify-reproducible.mjs` | the pinned Docker build and `npm run verify:reproducible` |
 | `testnet/receipts.json`, `testnet/run.txt` | the recorded testnet run |
 | `res/` | prebuilt wasm and its sha256 |
 | [VERIFY.md](VERIFY.md) | claim → command → expected output |
 | [THREAT_MODEL.md](THREAT_MODEL.md) | who can do what, and what Préavis does not stop |
-| `docs/` | journey (dated decisions), experiments, lessons, the challenge design |
+| `docs/` | journey (dated decisions), experiments, lessons, the challenge design note |
 
 ## Disclosure: AI-generated code
 
