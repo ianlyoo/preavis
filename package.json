@@ -17,6 +17,7 @@
     "build-wasm": "bash scripts/build-wasm.sh",
     "update-prebuilt": "bash scripts/build-reproducible.sh && cp target/reproducible/preavis.wasm res/ && cd res && sha256sum preavis.wasm > preavis.wasm.sha256",
     "owner": "cargo run --locked --quiet --example owner --",
-    "local-model": "bash scripts/local-model.sh"
+    "local-model": "bash scripts/local-model.sh",
+    "challenge-deploy": "cargo test --locked --test challenge -- --ignored --nocapture"
   }
 }

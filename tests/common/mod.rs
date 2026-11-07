@@ -197,8 +197,8 @@ pub async fn subaccount(owner: &Account, name: &str, balance: NearToken) -> Resu
         .into_result()?)
 }
 
-/// The demo mandate's period: a week of blocks, at about one block a second.
-pub const PERIOD_BLOCKS: u64 = 604_800;
+/// The demo mandate's period: a week of blocks at testnet's pace, about 0.6 s a block.
+pub const PERIOD_BLOCKS: u64 = 1_008_000;
 /// The demo mandate expires this many periods after it is created.
 pub const PERIODS: u64 = 6;
 
