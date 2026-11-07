@@ -1,16 +1,16 @@
 # Journey
 
-Dated decisions behind v0.8. Times are KST; times marked ≈ are reconstructed, the others are commit or log times. The earlier spike (contract sketch, sandbox tests, the
-testnet toolchain) is not in this repository's history; v0.8 was rebuilt from it in a fresh repo.
+Dated decisions behind Préavis. Times are KST; times marked ≈ are reconstructed, the others are
+commit or log times. The earlier spike (contract sketch, sandbox tests, the testnet toolchain) is not
+in this repository's history; v0.8 was rebuilt from it in a fresh repo.
 
 ## 2026-11-07
 
-- **≈12:40, start.** Scope fixed by the hackathon plan, "Option 1": a Rust mandate contract the agent
-  must ask before paying, a `npm run verify` that a stranger can run, attack and observe commands, one
-  recorded testnet run, and honest documents. Judge-facing line: *"You hold our agent's key. Try to make
-  it pay you."*
-- **≈12:45, name check.** Searched for existing projects named KeyDare in the NEAR and agent-payments
-  space; nothing collided.
+- **≈12:40, start.** Scope: a Rust mandate contract the agent must ask before paying, a
+  `npm run verify` that a stranger can run, attack and observe commands, one recorded testnet run, and
+  honest documents. The pitch in one line: *"You hold our agent's key. Try to make it pay you."*
+- **≈12:45, working name.** The project started as KeyDare; a search of the NEAR and agent-payments
+  space found no collision.
 - **≈12:50, one contract file, no admin surface.** No upgrade, add-key or policy-edit method. A policy
   change means a new mandate. `no_admin_surface` enforces the export list and the absence of deploy and
   key actions in the source.
@@ -29,8 +29,8 @@ testnet toolchain) is not in this repository's history; v0.8 was rebuilt from it
 - **≈13:00, seeded keys found.** `near-workspaces` 0.24 gives sub-accounts created without `.keys()` a key
   from a public seed (`"subaccount.seed"`), and `dev_create_account` derives keys from the account id.
   Anyone could sign for such accounts on testnet. Every account here now gets `SecretKey::from_random`.
-- **≈13:00, owner delta #1180: rename to Préavis.** Identifiers, crate and commands became `preavis`;
-  repository `ianlyoo/preavis`. Old commits keep the KeyDare name.
+- **≈13:00, renamed to Préavis.** Identifiers, crate and commands became `preavis`; repository
+  `ianlyoo/preavis`. Old commits keep the KeyDare name.
 - **13:02, public testnet RPC rate limit.** `archival-rpc.testnet.near.org` returned 429 after three
   claims. Execute switched to `https://test.rpc.fastnear.com`; observe tries FastNEAR's archival and
   regular endpoints first and backs off on 429. `PREAVIS_TESTNET_RPC` overrides both.
@@ -43,6 +43,44 @@ testnet toolchain) is not in this repository's history; v0.8 was rebuilt from it
 - **≈13:25, documents.** README with expected output pasted, VERIFY.md generated from real output,
   THREAT_MODEL.md with what is not stopped.
 
-## Not in v0.8 (planned for 2026-11-11)
+## 2026-11-07, v0.9 fix round
 
-The lock (deleting the mandate account's full-access key), the video, the post and the form.
+Two independent outside reviews of v0.8 found real gaps. The fixes, in order:
+
+- **≈13:40, verify failed on arm64.** The committed wasm did not match an arm64 build of the same
+  source. Cause: Cargo hashes `rustc -vV`, which names the host triple, into crate metadata, and that
+  changes symbol names and code. Decision: build the committed wasm in one pinned `linux/amd64` Rust
+  image (by digest), with NEP-330 build info naming the source commit, and split the checks.
+  `npm run verify` deploys the committed bytes on any host and checks the inputs are unchanged since
+  that commit; `npm run verify:reproducible` (Docker) proves byte identity against the committed
+  file and the deployed code hash. `strip = true` cut the wasm from 393 KB to 232 KB.
+- **≈13:45, storage growth was unbounded.** v0.8 stored every attempt, so a hostile key could fill
+  the mandate's storage. Decision: a policy limit on payments and on stored denials; denials past the
+  limit are counted and emitted but not stored. `new` requires the balance to cover the total cap
+  plus storage for every slot, so the mandate can always settle or reject what it holds. Request IDs
+  that reserved budget are kept forever, so replay protection never expires. Measured worst record:
+  399 bytes against 500 reserved.
+- **≈13:50, one treasury feature, no discretion.** `close()` sends the free remainder only to
+  `refund_to`, fixed at init; held requests stay payable. Every request names an invoice reference
+  that the owner's approval must repeat. Per-period caps and NEP-141 were left out.
+- **14:02, attack-local measured nothing.** It printed "you received 0" from a balance difference.
+  It now reads back every receipt of the attacks and sums the transfers to the attacker, with a
+  positive control on the payees.
+- **14:31, observe-testnet asserted too little.** It printed outcomes it did not compare. The record
+  now holds, per claim, signer, receiver, actions, status, events, failures and implied transfers;
+  the observer compares them all, re-reads the end state, and fails unless the mandate has no key.
+  A negative control feeds it four altered records and requires four failures.
+- **14:31, an agent in the loop.** `npm run agent`: an LLM reads three invoices, one with a prompt
+  injection, and calls `request_spend` with the function-call key. Model access is a command
+  (`claude -p`, a local model, any OpenAI-compatible endpoint). The default replays a recording made
+  with a free local model (Qwen2.5-7B-Instruct on CPU through llama.cpp) and says so. That model
+  declined the injection; a model-independent step then sends the injected payment anyway, and the
+  contract refuses it (`UNLISTED`).
+- **14:34, the lock.** A fresh testnet mandate ran the 24 on-chain claims; claim 24 deleted its last
+  access key (`9cgVTZQRz1xTiTihLZY5cU1VyqBdjxxZYypbHJiieEgg`). The agent account's full-access key
+  stays offline with the owner, as the switch for firing the agent. No testnet secret key is
+  published.
+
+## Not done yet
+
+The video, the post and the submission form.

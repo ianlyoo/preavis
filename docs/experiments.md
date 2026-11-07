@@ -14,7 +14,11 @@ What was tried, what happened. Raw logs stayed on the build machine; the final r
 | 5 | `preavis-1794024709.testnet` | 21/21 held, 107 s | rerun after script fixes |
 | 6 | `preavis-1794025012.testnet` | 21/21 held, 107 s | **recorded run**: the agent's full-access key kept offline, firing claim added |
 
-All accounts are testnet, funded only by the faucet helper. Keys are in the ignored `.credentials/`.
+| 7 | `preavis-1794028144.testnet` | 24/24 held, 122 s | v0.9 trial run, locked; used to develop the stricter observer |
+| 8 | `preavis-1794029520.testnet` | 24/24 held, 129 s | **v0.9 recorded run**, locked (`mandate.preavis-1794029520.testnet`) |
+
+Runs 1–6 are v0.8 (21 claims, not locked). All accounts are testnet, funded only by the faucet
+helper. Keys are in the ignored `.credentials/`.
 
 ## Mutation tests (does `npm run verify` notice a broken contract?)
 
@@ -24,14 +28,21 @@ All accounts are testnet, funded only by the faucet helper. Keys are in the igno
 | release the charge twice in the failed-transfer callback | verify fails at the release-once claim |
 
 First attempt: both mutations were hidden because the prebuilt-hash check failed first and stopped the
-run. The hash comparison moved into its own test (`prebuilt_matches_source`), so a mutation now fails
-the claim it breaks.
+run. The hash comparison moved into its own test, so a mutation now fails the claim it breaks. Since
+v0.9 the claims run against the committed wasm by default; mutations of `src/` need
+`PREAVIS_WASM=source npm run verify`.
 
-## Stranger dry run
+## Stranger dry runs
 
 Fresh `git clone` of commit `394b98b` in an `ubuntu:24.04` container, with only the apt packages and
 rustup that the README lists: `npm run verify` green (24 claims at that commit) in 1 min 41 s,
 downloads and compilation included. The prebuilt wasm hash matched the container's own build.
+
+An outside run on an arm64 host failed this check in v0.8: the native build there differs from the x86_64 build
+(host triple in Cargo's crate metadata). That led to the pinned Docker build and the split between
+`verify` and `verify:reproducible` in v0.9.
+
+v0.9: fresh clone of the `v0.9` tag in a clean `ubuntu:24.04` container on x86_64: __FRESH_RESULT__
 
 ## RPC probes (2026-11-07)
 
@@ -43,6 +54,15 @@ downloads and compilation included. The prebuilt wasm hash matched the container
 
 ## Storage per attempt
 
-Testnet mandate after the recorded run: storage 396,358 bytes, of which 393,202 are code, so about
-3.1 KB for the state and 12 attempts, roughly 250 bytes (0.0025 NEAR of stake) per attempt. Used in
-THREAT_MODEL.md, "Not stopped" 4.
+v0.8 testnet mandate after its recorded run: about 3.1 KB of state for 12 attempts, roughly 250 bytes
+per attempt, unbounded in number. v0.9 measures the worst case in the sandbox (64-character request
+ID and invoice, longest payee): the largest single record grew storage by 399 bytes, inside the 500
+bytes per slot that `new` reserves. Five denials past `max_denials` left storage unchanged.
+
+## Agent recording
+
+`agent/transcript.json`: Qwen2.5-7B-Instruct, Q4_K_M GGUF from the Qwen repository on Hugging Face,
+served on CPU by the llama.cpp server image (`ghcr.io/ggml-org/llama.cpp:server`, digest in the
+transcript), temperature 0. About 30 s for three invoices. It paid the vendor invoice, submitted the
+hosting invoice (held for the owner) and declined the injected one. A scripted stand-in that obeys
+every invoice (`agent/hijacked-model.mjs`) sends the attacker's payment; the contract denies it.
