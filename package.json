@@ -3,13 +3,18 @@
   "version": "0.9.0",
   "private": true,
   "description": "You hold our agent's key. Try to make it pay you.",
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "verify": "cargo test --locked -- --nocapture --test-threads=1",
+    "verify:reproducible": "node scripts/verify-reproducible.mjs",
     "attack-local": "cargo test --locked --test attack -- --nocapture",
+    "agent": "cargo test --locked --test agent -- --nocapture",
     "observe-testnet": "node scripts/observe-testnet.mjs",
+    "observe-testnet:negative": "node scripts/observe-negative.mjs",
     "execute-testnet": "cargo test --locked --test testnet -- --ignored --nocapture",
     "build-wasm": "bash scripts/build-wasm.sh",
-    "update-prebuilt": "bash scripts/build-wasm.sh && cp target/wasm32-unknown-unknown/release/preavis.wasm res/ && cd res && sha256sum preavis.wasm > preavis.wasm.sha256"
+    "update-prebuilt": "bash scripts/build-reproducible.sh && cp target/reproducible/preavis.wasm res/ && cd res && sha256sum preavis.wasm > preavis.wasm.sha256"
   }
 }

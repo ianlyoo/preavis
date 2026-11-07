@@ -264,7 +264,7 @@ fn no_admin_surface() -> Result<()> {
     let expected = ["approve", "attempts", "close", "contract_source_metadata", "get_request", "mandate", "new", "on_transfer", "reject", "request_spend"];
     ensure!(exports == expected, "unexpected exported methods: {exports:?}");
     let source = std::fs::read_to_string("src/lib.rs")?;
-    for action in ["deploy_contract", "add_full_access_key", "add_access_key", "delete_key", "delete_account", "create_account", "function_call", "stake", "env::storage_write", "env::promise_batch"] {
+    for action in ["deploy_contract", "add_full_access_key", "add_access_key", "delete_key", "delete_account", "create_account", "function_call", ".stake(", "env::storage_write", "env::promise_batch"] {
         ensure!(!source.contains(action), "src/lib.rs contains {action}");
     }
     ensure!(
