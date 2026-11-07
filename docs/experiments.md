@@ -42,7 +42,9 @@ An outside run on an arm64 host failed this check in v0.8: the native build ther
 (host triple in Cargo's crate metadata). That led to the pinned Docker build and the split between
 `verify` and `verify:reproducible` in v0.9.
 
-v0.9: fresh clone of the `v0.9` tag in a clean `ubuntu:24.04` container on x86_64: __FRESH_RESULT__
+v0.9: fresh clone of the `v0.9` tag in a clean `ubuntu:24.04` container on x86_64: `npm run verify` exit 0 in 278 s, with the
+apt packages, rustup, downloads and compilation included: 30 claims held, the agent replay and
+`attack-local` passed. Not yet run on arm64 (no arm64 emulation on the build host).
 
 ## RPC probes (2026-11-07)
 

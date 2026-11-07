@@ -47,7 +47,10 @@ paid API. The first run downloads Rust 1.99.1, the crates and the NEAR sandbox b
 (nearcore 2.14.0), so it needs a network connection.
 
 Where it was run: from a fresh clone of the `v0.9` tag in a clean `ubuntu:24.04` container on
-x86_64, `npm run verify` exited 0 in __FRESH_TIME__, downloads and compilation included. __ARM64__
+x86_64, `npm run verify` exited 0 in 4 min 38 s, with the apt packages, rustup, downloads and
+compilation included. On arm64 the v0.9 run is still to be done: our build host has no arm64
+emulation. v0.8 failed there because it compared a native build with the committed wasm; v0.9
+deploys the committed bytes and leaves byte identity to `npm run verify:reproducible`.
 
 Expected output (abridged; keys and block numbers differ per run):
 
