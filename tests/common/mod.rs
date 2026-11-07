@@ -73,6 +73,37 @@ pub fn events(result: &ExecutionFinalResult) -> Vec<Value> {
         .collect()
 }
 
+/// Every NEAR transfer the transaction's receipts carried, as `{from, to, amount}`, read back from
+/// the node receipt by receipt. Gas refunds (sent by `system`) are left out.
+pub async fn transfers<N: Network + 'static>(worker: &Worker<N>, result: &ExecutionFinalResult) -> Result<Vec<Value>> {
+    let mut out = vec![];
+    for id in result.outcomes().iter().flat_map(|o| o.receipt_ids.clone()) {
+        let receipt_id = id.to_string().parse().map_err(|e| anyhow::anyhow!("{e}"))?;
+        let receipt = worker.receipt(near_jsonrpc_primitives::types::receipts::ReceiptReference { receipt_id }).await?;
+        let receipt = serde_json::to_value(&receipt)?;
+        if receipt["predecessor_id"] == "system" {
+            continue;
+        }
+        for action in receipt["receipt"]["Action"]["actions"].as_array().into_iter().flatten() {
+            if let Some(amount) = action["Transfer"].get("deposit") {
+                out.push(json!({"from": receipt["predecessor_id"], "to": receipt["receiver_id"], "amount": amount}));
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// The signed transaction's receiver and actions, as the node reports them, for the receipt file.
+pub async fn transaction<N: Network + 'static>(worker: &Worker<N>, tx: &str, signer: &str) -> Result<Value> {
+    let info = near_jsonrpc_primitives::types::transactions::TransactionInfo::TransactionId {
+        tx_hash: tx.parse().map_err(|e| anyhow::anyhow!("{e}"))?,
+        sender_account_id: signer.parse()?,
+    };
+    let status = worker.tx_status(info, near_primitives::views::TxExecutionStatus::Final).await?;
+    let outcome = status.final_execution_outcome.context("no outcome")?.into_outcome();
+    Ok(json!({"receiver": outcome.transaction.receiver_id, "actions": outcome.transaction.actions}))
+}
+
 /// Each failed receipt, reduced to its panic message or `AccountDoesNotExist`; the observer
 /// reduces the chain's JSON the same way.
 pub fn failures(result: &ExecutionFinalResult) -> Vec<String> {

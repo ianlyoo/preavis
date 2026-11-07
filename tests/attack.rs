@@ -66,10 +66,12 @@ async fn attack_local() -> Result<()> {
     .collect();
     let payees = [w.vendor.id().clone(), w.hosting.id().clone()];
     let mut start = BTreeMap::new();
-    for id in payees.iter().chain([w.attacker.id()]) {
+    for id in &payees {
         start.insert(id.clone(), w.balance(id).await?);
     }
 
+    let mut received: BTreeMap<String, u128> = BTreeMap::new();
+    let mut receipts_read = 0;
     println!("\n{:>3}  {:<8} {:<14} outcome", "#", "as", "method");
     for (n, attack) in attacks.iter().enumerate() {
         let signer = match attack["as"].as_str().unwrap_or("agent") {
@@ -87,6 +89,13 @@ async fn attack_local() -> Result<()> {
             .gas(Gas::from_tgas(100))
             .transact()
             .await;
+        if let Ok(result) = &sent {
+            receipts_read += result.outcomes().iter().map(|o| o.receipt_ids.len()).sum::<usize>();
+            for t in transfers(&w.worker, result).await? {
+                let to = t["to"].as_str().context("to")?.to_string();
+                *received.entry(to).or_default() += t["amount"].as_str().context("amount")?.parse::<u128>()?;
+            }
+        }
         let outcome = match sent {
             Err(error) => format!("refused by the protocol: {}", short(&format!("{error:?}"))),
             Ok(result) if result.is_failure() => format!("refused by the contract: {}", short(&format!("{:?}", result.failures()))),
@@ -120,17 +129,17 @@ async fn attack_local() -> Result<()> {
         .map(amount)
         .sum();
     let total_cap: u128 = summary["policy"]["total_cap"].as_str().context("total_cap")?.parse()?;
-    let attacker_now = w.balance(w.attacker.id()).await?;
-
+    let paid_you = received.get(w.attacker.id().as_str()).copied().unwrap_or(0);
     let mut broken = vec![];
-    if attacker_now > start[w.attacker.id()] {
-        broken.push(format!("you received {} yoctoNEAR", attacker_now - start[w.attacker.id()]));
+    if paid_you > 0 {
+        broken.push(format!("you received {paid_you} yoctoNEAR"));
     }
     for payee in &payees {
         let delta = w.balance(payee).await? - start[payee];
         let cap: u128 = summary["policy"]["payees"][payee.as_str()].as_str().context("cap")?.parse()?;
-        if delta != moved(payee.as_str()) || delta > cap {
-            broken.push(format!("{payee} received {delta}, records say {}, cap {cap}", moved(payee.as_str())));
+        let measured = received.get(payee.as_str()).copied().unwrap_or(0);
+        if delta != moved(payee.as_str()) || measured != delta || delta > cap {
+            broken.push(format!("{payee} balance +{delta}, transfers +{measured}, records say {}, cap {cap}", moved(payee.as_str())));
         }
     }
     if committed != reserved || committed > total_cap {
@@ -144,9 +153,11 @@ async fn attack_local() -> Result<()> {
     }
 
     println!();
+    println!("You made the agent pay you: {paid_you} yoctoNEAR.");
+    println!("  (measured: the transfers to {} in all {receipts_read} receipts of your attacks, read back from the node)", w.attacker.id());
     if broken.is_empty() {
-        println!("You made the agent pay you: 0 yoctoNEAR.");
-        println!("Invariants held: payees received exactly what settled records say and never more than their caps;");
+        println!("Invariants held: payees received exactly what settled records say (by balance and by transfer receipts)");
+        println!("and never more than their caps;");
         println!("committed {committed} <= total cap {total_cap}; no charge released twice.");
     }
     ensure!(broken.is_empty(), "INVARIANT BROKEN: {broken:?}");
