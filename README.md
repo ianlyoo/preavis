@@ -48,7 +48,8 @@ npm run verify
 `npm run verify` is `cargo test --locked -- --nocapture --test-threads=1`. It starts a fresh local
 NEAR sandbox, deploys the committed `res/preavis.wasm` (the same bytes as on testnet), generates the
 agent's key on your machine, and asserts every scenario on contract state, balances and execution
-outcomes. It also runs the attack suite and the agent and owner programs end to end. You need no
+outcomes. It also runs the attack suite, the agent and owner programs end to end, and 64 random
+sequences of the [invariant tests](#invariant-tests-random-sequences). You need no
 account, secret or paid API. The first run downloads Rust 1.99.1, the crates and the NEAR sandbox
 binary (nearcore 2.14.0), so it needs a network connection. Nothing in it touches testnet.
 
@@ -92,6 +93,31 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 ```
 
 The full list of 35 claims, each with its command and expected line, is in [VERIFY.md](VERIFY.md).
+
+### Invariant tests (random sequences)
+
+Beyond the 35 scripted claims, `tests/fuzz.rs` runs seeded random sequences of requests, owner
+approvals and rejections, period crossings and closes, each against a fresh sandbox mandate with its
+own random policy. After every step it checks five invariants against the chain (the step's receipts,
+account balances, `mandate()` and every stored attempt):
+
+- **I1** every transfer out of the mandate goes to an allowlisted payee within its cap, or to
+  `refund_to` from `close` (the owner's, or anyone's from `expires_at` on);
+- **I2** `committed` ≤ the total cap, each payee's committed ≤ its cap, the agent's own commitments
+  per period ≤ `approval_threshold`;
+- **I3** `committed` equals the sum of settled requests, and so do the payees' balances; a failed
+  transfer is released exactly once;
+- **I4** the mandate's balance falls only by settled payments and the close refund;
+- **I5** a request denied `EXHAUSTED` in one period is accepted in a later one if it still fits.
+
+`npm run verify` runs 64 sequences × 40 steps with the fixed seed 494 (about 50 s of its run time).
+`npm run verify:fuzz` runs 2,048 sequences × 40 steps with a random seed, printed first;
+`PREAVIS_FUZZ_SEED=<seed>` replays the same operations. A violation prints the seed and the failing
+sequence, shrunk by removing steps. Measured on 2026-11-07 (commit `e1a3b86`, an
+`ubuntu:24.04` container on Apple Silicon): `npm run verify:fuzz` ran 2,048 sequences × 40 steps
+(81,920 steps, 73,178 transactions), seed `1794048948887891796`, in 1,478 s: **0 invariant
+violations**. What the sequences contain, each check, and a
+negative control: [VERIFY.md H](VERIFY.md#h-npm-run-verifyfuzz-invariant-tests-random-sequences).
 
 ## 2. Do X → see Y
 
@@ -401,7 +427,7 @@ deployed on testnet. A new policy means a new mandate.
 
 The contract is about 610 lines of Rust in [`src/lib.rs`](src/lib.rs). The scenarios are in
 [`tests/common/mod.rs`](tests/common/mod.rs) (shared by sandbox and testnet) and
-[`tests/verify.rs`](tests/verify.rs).
+[`tests/verify.rs`](tests/verify.rs), the invariant tests in [`tests/fuzz.rs`](tests/fuzz.rs).
 
 ## Reproducible build
 
@@ -443,6 +469,7 @@ The contract is about 610 lines of Rust in [`src/lib.rs`](src/lib.rs). The scena
 | `src/lib.rs` | the mandate contract |
 | `tests/verify.rs`, `tests/common/mod.rs` | `npm run verify`: 35 claims, plus `no_admin_surface` and `prebuilt_is_from_this_source` |
 | `tests/attack.rs`, `attack/inputs.json` | `npm run attack-local` |
+| `tests/fuzz.rs` | the invariant tests: 64 random sequences in `npm run verify`, 2,048 in `npm run verify:fuzz` |
 | `examples/agent.rs`, `examples/owner.rs`, `tests/common/office.rs`, `agent/` | `npm run agent` and `npm run owner`: the persistent local node, inbox, prompt, recorded transcript, hijacked stand-in |
 | `tests/agent.rs` | both programs end to end, inside `npm run verify` |
 | `scripts/local-model.sh`, `scripts/model-openai.mjs` | the pinned local model and its adapter |

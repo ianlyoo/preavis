@@ -13,7 +13,8 @@ Layers: **protocol** = refused by NEAR itself (access-key rules), before any con
 
 | Command | Needs | Proves |
 |---|---|---|
-| `npm run verify` | Rust (rustup), Node, network for the first download. No Docker. Linux, macOS or WSL, x86_64 or arm64 (where it was run: [README §1](README.md#1-verify-everything-in-one-command)) | the 35 claims below, run against the committed `res/preavis.wasm` (the bytes deployed on testnet); that the wasm exports no admin method; that it names the source commit it was built from and the contract's inputs have not changed since; plus `attack-local` and the recorded agent run |
+| `npm run verify` | Rust (rustup), Node, network for the first download. No Docker. Linux, macOS or WSL, x86_64 or arm64 (where it was run: [README §1](README.md#1-verify-everything-in-one-command)) | the 35 claims below, run against the committed `res/preavis.wasm` (the bytes deployed on testnet); that the wasm exports no admin method; that it names the source commit it was built from and the contract's inputs have not changed since; plus `attack-local`, the recorded agent run and 64 random sequences of the invariant tests (section H) |
+| `npm run verify:fuzz` | as `npm run verify` | the invariant tests over 2,048 random sequences with a random seed (section H) |
 | `npm run verify:reproducible` | Docker (pulls the pinned `linux/amd64` Rust image; an arm64 host needs amd64 emulation) | byte identity: rebuilding that commit gives exactly `res/preavis.wasm`, its recorded sha256, and the code hash deployed on testnet |
 | `npm run observe-testnet` | Node only, no key | the recorded testnet run: every transaction, event, failure and transfer, the end state, that the mandate is locked, and that the deployed code imports only allowlisted host functions; the challenge mandate (never published, retired): locked, key deleted, closed with its remainder sent only to `refund_to`, and `paid to attackers: 0` |
 | `npm run agent`, `npm run owner` | Rust, Node | the agent and the owner as separate programs over a local node that survives restarts (section F) |
@@ -27,8 +28,8 @@ Preavis verify: 35 claims held, 0 broken.
 test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 ```
 
-`npm run verify` is `cargo test --locked`, so it also runs `tests/agent.rs` (section F) and
-`tests/attack.rs` (section C), each ending `test result: ok. 1 passed`. Each claim prints as
+`npm run verify` is `cargo test --locked`, so it also runs `tests/agent.rs` (section F),
+`tests/attack.rs` (section C) and `tests/fuzz.rs` (section H), each ending `test result: ok. 1 passed`. Each claim prints as
 `HELD <n>  [<layer>] <claim>` followed by `observed: …`. Keys, hashes, amounts in yocto and block
 numbers vary per run. With `PREAVIS_WASM=source` the claims run against a native build of `src/`
 instead of the committed wasm (only claim 1's hash changes).
@@ -209,3 +210,78 @@ does send them and the contract answers `DENIED UNLISTED`. The recording's model
 | Claims 1–22, 24 and 25 hold on a fresh testnet deployment you create, ending locked | `npm run execute-testnet` | 24 `HELD` lines with nearblocks links, then `Preavis testnet: 24 claims held, 0 broken.` |
 
 Prerequisites and 429 handling: [README §6](README.md#6-run-it-on-testnet-yourself-optional).
+
+## H. `npm run verify:fuzz` (invariant tests, random sequences)
+
+Self-verification beyond the scripted claims: `tests/fuzz.rs` runs seeded random sequences of
+operations, each against a fresh sandbox mandate with a random policy, and checks the invariants after
+every step. Nothing touches testnet and no model is involved.
+
+| Command | Sequences × steps | Seed | Expected last line |
+|---|---|---|---|
+| `npm run verify` (part of it) | 64 × 40 | 494 | `Preavis invariants: 64 sequences × 40 steps (2560 steps, <n> transactions), seed 494, <s> s: 0 invariant violations.` |
+| `npm run verify:fuzz` | 2,048 × 40 | random, printed on the first line | `Preavis invariants: 2048 sequences × 40 steps (81920 steps, <n> transactions), seed <seed>, <s> s: 0 invariant violations.` |
+
+`PREAVIS_FUZZ_SEED`, `PREAVIS_FUZZ_SEQUENCES` and `PREAVIS_FUZZ_STEPS` override the defaults. A seed
+fixes the policies and the operations; the sandbox makes blocks in real time, so the block each step
+lands in, and with it where period edges fall, varies between runs. Before the last line both modes
+print how many steps ended in each outcome (e.g. `Agent request_spend → DENIED EXHAUSTED`), and the
+long run prints a progress line per 64 sequences.
+
+**Each sequence** gets a random policy: four allowlisted payees with caps, a total cap, an approval
+threshold, periods of 10–30 blocks, `expires_at` 100–900 blocks out, 1–2 request slots and 0–4
+stored denials per period. In one sequence of ten, amounts count in yoctoNEAR instead of 0.1 NEAR.
+Then come 38 random steps and two closes: a stranger's (refused before `expires_at`), then the
+owner's. The random steps are:
+
+- `request_spend` to the allowlisted payees (one never created, so its transfer fails; one an
+  implicit 64-hex account), look-alikes (`vend0r.…`, `vendorr.…`, `vendor.….x`, the upper-case
+  name), sub-accounts of payees, an unlisted implicit account, `refund_to`, the owner, the agent, the
+  stranger, the mandate itself and an unlisted account that exists;
+- amounts of 0, 1 yocto, a few units, each cap −1/±0/+1, the payee's remaining cap ±1, the remaining
+  total ±1, the agent's remaining own budget ±1, `u128::MAX`, `u128::MAX − 1` and 2¹²⁷;
+- fresh, reused (altered) and replayed request IDs, empty and 65-byte IDs and invoices, wrong policy
+  versions (±1, 0, `u32::MAX`), other invoices, and requests signed by the owner or a stranger;
+- `approve` with the exact binding or with an altered amount, invoice, payee or version, and
+  `reject`, both also signed by the agent or a stranger;
+- a period crossing: wait for the next period and resend the last request denied `EXHAUSTED`;
+- `close` by the owner or a stranger at a random point.
+
+**After every step**, read from the chain:
+
+| | Invariant | Checked against |
+|---|---|---|
+| I1 | every transfer out of the mandate goes to an allowlisted payee within its cap, for a request settled or failed in that step, or to `refund_to` from `close` signed by the owner or landing at or after `expires_at`; a stranger's close succeeds exactly when it lands at or after `expires_at`; no look-alike, sub-account or unlisted implicit account ever comes to exist | every transfer in the step's receipts, read back from the node; the `closed` event; `view_account` at the end |
+| I2 | `committed` ≤ total cap; each payee's committed ≤ its cap; `period_committed`, and the agent's own settled amount in every period, ≤ `approval_threshold` | `mandate()` and all attempts |
+| I3 | `committed` and each payee's committed equal the sum of settled requests; `held` equals the sum awaiting; nothing is left `PENDING`; a failed request has `releases` 1, every other 0; vendor, hosting and the implicit payee gain exactly what settled to them, `refund_to` exactly the close refund, the unlisted account nothing | `mandate()`, all attempts, balances |
+| I4 | the mandate's balance falls by exactly the settled payments plus the close refund (it may gain at most what its own receipts burnt; in the sandbox it gains nothing) | its balance before and after |
+| I5 | a request denied `EXHAUSTED` in period N, resent in a later period (under its own ID unless that was taken since), is accepted (`SETTLED`, `FAILED` or `AWAITING_APPROVAL`) in a period after N whenever it still fits the payee's cap and the total cap | the returned attempt; `mandate()` read just before |
+
+A violation stops the run with `INVARIANT VIOLATED: I<n> …`, the seed and the sequence number. The
+test then replays the sequence on fresh mandates, removing one step at a time, and prints the
+shortest sequence that still fails, step by step, and the command that reproduces it.
+
+**Negative control.** `PREAVIS_FUZZ_FEATURE=inject-callback-failure` runs the test-only build
+whose settlement callback always panics (claim 28). Measured on the final test code:
+`PREAVIS_FUZZ_FEATURE=inject-callback-failure PREAVIS_FUZZ_SEED=494 PREAVIS_FUZZ_SEQUENCES=8 npm run
+verify:fuzz` stopped at step 2 of sequence 0 with `INVARIANT VIOLATED: I1 transfer of
+200000000000000000000000 yocto to ghost.s0.test.near without a request settled or failed in this
+step` and shrank the sequence to its one payment request; the command exits non-zero.
+
+**Measured long run** (2026-11-07, commit `e1a3b86`, a clean `ubuntu:24.04` container on Apple
+Silicon via colima, 6 CPUs; not run on x86_64):
+
+```text
+invariant tests: 2048 sequences × 40 steps, seed 1794048948887891796
+  64 of 2048 sequences: 0 invariant violations (46 s)
+  …
+Preavis invariants: 2048 sequences × 40 steps (81920 steps, 73178 transactions), seed 1794048948887891796, 1478 s: 0 invariant violations.
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1478.36s
+```
+
+Among those steps: 4,687 requests `SETTLED` and 1,727 `FAILED` (the never-created payee), 1,710 held
+for the owner, 564 owner approvals settled and 181 failed, 605 rejections, 1,128 `DENIED EXHAUSTED`;
+of 638 I5 resends, 590 were accepted, 41 no longer fitted a cap (`DENIED PAYEE_CAP` / `TOTAL_CAP`)
+and 7 landed after `expires_at`. Strangers' closes: 275 after `expires_at` (paid `refund_to`), 2,184
+refused `OWNER_ONLY` before it. In the same container, the 64-sequence run inside `npm run verify`
+took 49 s.
