@@ -1007,6 +1007,13 @@ async fn invariants() -> Result<()> {
             );
             bail!("invariant violated (seed {seed}, sequence {sequence})");
         }
+        if sequences > CONCURRENCY {
+            println!(
+                "  {} of {sequences} sequences: 0 invariant violations ({:.0} s)",
+                (batch + CONCURRENCY).min(sequences),
+                started.elapsed().as_secs_f64()
+            );
+        }
     }
     println!("\nsteps by outcome:");
     for (k, v) in &seen {
