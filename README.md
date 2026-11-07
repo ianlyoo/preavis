@@ -54,9 +54,9 @@ binary (nearcore 2.14.0), so it needs a network connection. Nothing in it touche
 
 Where it was run:
 
-- **x86_64:** a fresh clone of this repository at commit `7b83185` (v1.0's code; the tag adds only
-  this paragraph) in a clean `ubuntu:24.04` container, following the steps above: `npm run verify`
-  exited 0 in 280 s, apt packages, rustup, downloads and compilation included. It ended
+- **x86_64:** a fresh clone of this repository at commit `2d4e818` (v1.0.1's code; the tag adds
+  only this paragraph) in a clean `ubuntu:24.04` container, following the steps above: `npm run verify`
+  exited 0 in 309 s, apt packages, rustup, downloads and compilation included. It ended
   `Preavis verify: 35 claims held, 0 broken.`
 - **arm64:** v1.0 in a clean `ubuntu:24.04` container on Apple Silicon (colima), run by an
   independent reviewer on 2026-11-07: `npm run verify` exited 0 in 124 s including downloads and
