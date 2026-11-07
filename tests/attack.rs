@@ -49,7 +49,7 @@ async fn attack_local() -> Result<()> {
 
     let worker = near_workspaces::sandbox().await?;
     let root = worker.root_account()?;
-    let mut w = setup(worker, root.clone(), NEAR / 10, NearToken::from_near(10), &wasm(None)?, false).await?;
+    let mut w = setup(worker, root.clone(), NEAR / 10, NearToken::from_near(10), &contract_wasm()?, false).await?;
     w.hand_over_agent().await?;
     // Your own account pays gas at the sandbox price (0.1 NEAR per 100 Tgas prepaid).
     root.transfer_near(w.attacker.id(), NearToken::from_near(10)).await?.into_result()?;

@@ -27,6 +27,15 @@ pub fn wasm(feature: Option<&str>) -> Result<Vec<u8>> {
     Ok(std::fs::read(format!("{target}/wasm32-unknown-unknown/release/preavis.wasm"))?)
 }
 
+/// The contract the scenarios deploy: the committed `res/preavis.wasm` (the bytes testnet runs), or
+/// with PREAVIS_WASM=source a native build of `src/`, to try your own changes.
+pub fn contract_wasm() -> Result<Vec<u8>> {
+    if std::env::var("PREAVIS_WASM").as_deref() == Ok("source") {
+        return wasm(None);
+    }
+    Ok(std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/res/preavis.wasm"))?)
+}
+
 pub fn sha256_hex(bytes: &[u8]) -> String {
     Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect()
 }
@@ -49,8 +58,38 @@ impl Evidence {
         let signer = result.map(|r| r.outcome().executor_id.to_string());
         self.rows.push(json!({
             "claim": claim, "layer": layer, "observed": observed, "tx": tx, "signer": signer, "tx_status": status,
+            "events": result.map(events), "failures": result.map(failures),
         }));
     }
+}
+
+/// Every NEP-297 event the transaction's receipts logged, in order.
+pub fn events(result: &ExecutionFinalResult) -> Vec<Value> {
+    result
+        .logs()
+        .iter()
+        .filter_map(|l| l.strip_prefix("EVENT_JSON:"))
+        .filter_map(|l| serde_json::from_str(l).ok())
+        .collect()
+}
+
+/// Each failed receipt, reduced to its panic message or `AccountDoesNotExist`; the observer
+/// reduces the chain's JSON the same way.
+pub fn failures(result: &ExecutionFinalResult) -> Vec<String> {
+    let mut out: Vec<String> = result
+        .failures()
+        .iter()
+        .map(|f| {
+            let text = format!("{f:?}");
+            match text.split_once("panicked: ") {
+                Some((_, rest)) => rest.split(['"', '\\']).next().unwrap_or("").to_string(),
+                None if text.contains("AccountDoesNotExist") => "AccountDoesNotExist".into(),
+                None => "other".into(),
+            }
+        })
+        .collect();
+    out.sort();
+    out
 }
 
 pub struct World<N: Network + 'static> {
@@ -62,6 +101,8 @@ pub struct World<N: Network + 'static> {
     pub hosting: Account,
     /// An unlisted account standing in for you: the agent must never pay it.
     pub attacker: Account,
+    /// `refund_to`, fixed at init: the only account `close` can send the remainder to.
+    pub treasury: Account,
     /// Allowlisted but never created, so a transfer to it fails.
     pub ghost: AccountId,
     /// Every amount is a multiple of this; 0.1 NEAR in the sandbox, 0.0001 NEAR on testnet.
@@ -83,10 +124,12 @@ pub async fn subaccount(owner: &Account, name: &str, balance: NearToken) -> Resu
         .into_result()?)
 }
 
-/// The fixed policy every demo mandate uses, in steps:
-/// vendor ≤ 30, hosting ≤ 30, ghost ≤ 10, total ≤ 40, and the agent alone may commit 10.
+/// The fixed policy every demo mandate uses, in steps: vendor ≤ 30, hosting ≤ 30, ghost ≤ 10,
+/// total ≤ 40, the agent alone may commit 10, and at most 30 payments and 30 stored denials.
 pub fn policy(vendor: &AccountId, hosting: &AccountId, ghost: &AccountId, step: u128) -> Value {
     json!({
+        "max_payments": 30,
+        "max_denials": 30,
         "version": 1,
         "payees": {
             vendor.as_str(): (30 * step).to_string(),
@@ -104,13 +147,14 @@ pub async fn deploy_mandate(
     balance: NearToken,
     wasm: &[u8],
     agent: &AccountId,
+    refund_to: &AccountId,
     policy: Value,
 ) -> Result<(Contract, ExecutionFinalResult)> {
     let account = subaccount(owner, name, balance).await?;
     let mandate = account.deploy(wasm).await?.into_result()?;
     let init = mandate
         .call("new")
-        .args_json(json!({"owner": owner.id(), "agent": agent, "policy": policy}))
+        .args_json(json!({"owner": owner.id(), "agent": agent, "refund_to": refund_to, "policy": policy}))
         .transact()
         .await?;
     ensure!(init.is_success(), "init failed: {init:?}");
@@ -130,10 +174,11 @@ pub async fn setup<N: Network + 'static>(
     let vendor = subaccount(&owner, "vendor", small).await?;
     let hosting = subaccount(&owner, "hosting", small).await?;
     let attacker = subaccount(&owner, "attacker", small).await?;
+    let treasury = subaccount(&owner, "treasury", small).await?;
     let ghost: AccountId = format!("ghost.{}", owner.id()).parse()?;
     let policy = policy(vendor.id(), hosting.id(), &ghost, step);
     let (mandate, init) =
-        deploy_mandate(&owner, "mandate", mandate_balance, wasm, agent.id(), policy).await?;
+        deploy_mandate(&owner, "mandate", mandate_balance, wasm, agent.id(), treasury.id(), policy).await?;
     let mut ev = Evidence { rows: vec![], testnet };
     ev.held(
         "mandate deployed and initialized with a fixed policy",
@@ -141,12 +186,20 @@ pub async fn setup<N: Network + 'static>(
         &format!("{} code sha256 {}", mandate.id(), sha256_hex(wasm)),
         Some(&init),
     );
-    Ok(World { worker, owner, agent, mandate, vendor, hosting, attacker, ghost, step, agent_offline_key: None, ev })
+    Ok(World { worker, owner, agent, mandate, vendor, hosting, attacker, treasury, ghost, step, agent_offline_key: None, ev })
 }
 
 impl<N: Network + 'static> World<N> {
     pub fn n(&self, steps: u128) -> u128 {
         steps * self.step
+    }
+
+    /// Request arguments; every test request names its invoice `invoice-<request id>`.
+    pub fn args(&self, id: &str, payee: &AccountId, steps: u128, version: u32) -> Value {
+        json!({
+            "request_id": id, "payee": payee, "amount": self.n(steps).to_string(),
+            "policy_version": version, "invoice": format!("invoice-{id}"),
+        })
     }
 
     pub async fn spend_as(
@@ -159,10 +212,7 @@ impl<N: Network + 'static> World<N> {
     ) -> Result<ExecutionFinalResult> {
         Ok(signer
             .call(self.mandate.id(), "request_spend")
-            .args_json(json!({
-                "request_id": id, "payee": payee, "amount": self.n(steps).to_string(),
-                "policy_version": version,
-            }))
+            .args_json(self.args(id, payee, steps, version))
             .gas(Gas::from_tgas(100))
             .transact()
             .await?)
@@ -279,6 +329,31 @@ impl<N: Network + 'static> World<N> {
         Ok(())
     }
 
+    /// The lock: deletes the mandate account's only key, the deployer's full-access key. Afterwards
+    /// nobody can sign for the mandate account, so only its code can move its balance. Then shows
+    /// the contract still works.
+    pub async fn lock_and_spend(&mut self) -> Result<()> {
+        let account = self.mandate.as_account();
+        let locked = account.batch(self.mandate.id()).delete_key(account.secret_key().public_key()).transact().await?;
+        ensure!(locked.is_success(), "{locked:?}");
+        let keys = self.worker.view_access_keys(self.mandate.id()).await?;
+        ensure!(keys.is_empty(), "mandate still has {} keys", keys.len());
+        self.ev.held(
+            "locked: the mandate account has no access key, so nobody can redeploy it or move its balance outside the contract",
+            "protocol",
+            "deleted the deployer's full-access key; view_access_key_list: 0 keys",
+            Some(&locked),
+        );
+        let vendor = self.vendor.id().clone();
+        let before = self.balance(&vendor).await?;
+        let spent = self.spend("after-lock", &vendor, 1).await?;
+        ensure!(spent.is_success() && spent.receipt_failures().is_empty(), "{spent:?}");
+        ensure!(self.request("after-lock").await?["status"] == "SETTLED");
+        ensure!(self.balance(&vendor).await? - before == self.n(1), "vendor not paid exactly 1 step");
+        self.ev.held("after the lock the contract still works: an in-policy request settles", "settlement", "SETTLED; vendor balance +1 step exactly", Some(&spent));
+        Ok(())
+    }
+
     /// The owner deletes the agent's working key with the offline full-access key.
     pub async fn fire_agent(&mut self) -> Result<()> {
         let offline = self.agent_offline_key.clone().context("agent not handed over")?;
@@ -312,9 +387,7 @@ pub async fn main_flow<N: Network + 'static>(w: &mut World<N>) -> Result<()> {
     let attacker_start = w.balance(w.attacker.id()).await?;
     let vendor_start = w.balance(w.vendor.id()).await?;
     let hosting_start = w.balance(w.hosting.id()).await?;
-    let held_args = |w: &World<N>, steps: u128| {
-        json!({"request_id": "split-b", "payee": w.vendor.id(), "amount": w.n(steps).to_string(), "policy_version": 1})
-    };
+    let held_args = |w: &World<N>, steps: u128| w.args("split-b", w.vendor.id(), steps, 1);
 
     // Before the hand-over the agent still has a full-access key, so this call reaches the
     // contract and shows the contract's own guard, separate from the key restriction below.
@@ -327,7 +400,7 @@ pub async fn main_flow<N: Network + 'static>(w: &mut World<N>) -> Result<()> {
     let deposit = w
         .agent
         .call(w.mandate.id(), "request_spend")
-        .args_json(json!({"request_id": "deposit", "payee": w.vendor.id(), "amount": "1", "policy_version": 1}))
+        .args_json(w.args("deposit", w.vendor.id(), 1, 1))
         .deposit(NearToken::from_yoctonear(1))
         .gas(Gas::from_tgas(100))
         .transact()
@@ -392,8 +465,13 @@ pub async fn main_flow<N: Network + 'static>(w: &mut World<N>) -> Result<()> {
 
     let altered = w.owner.call(w.mandate.id(), "approve").args_json(held_args(w, 9)).gas(Gas::from_tgas(100)).transact().await?;
     ensure!(failed_with(&altered, "BINDING_MISMATCH"), "{altered:?}");
+    let mut other_invoice = held_args(w, 4);
+    other_invoice["invoice"] = json!("invoice-something-else");
+    let swapped = w.owner.call(w.mandate.id(), "approve").args_json(other_invoice).gas(Gas::from_tgas(100)).transact().await?;
+    ensure!(failed_with(&swapped, "BINDING_MISMATCH"), "{swapped:?}");
     ensure!(w.request("split-b").await?["status"] == "AWAITING_APPROVAL");
     w.ev.held("an approval with an altered amount is refused", "contract", "panic BINDING_MISMATCH, request still held", Some(&altered));
+    w.ev.held("an approval for a different invoice is refused", "contract", "panic BINDING_MISMATCH, request still held", Some(&swapped));
 
     let approved = w.owner.call(w.mandate.id(), "approve").args_json(held_args(w, 4)).gas(Gas::from_tgas(100)).transact().await?;
     ensure!(approved.is_success() && approved.receipt_failures().is_empty(), "{approved:?}");

@@ -1671,19 +1671,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "preavis"
-version = "0.8.0"
-dependencies = [
- "anyhow",
- "near-sandbox",
- "near-sdk",
- "near-workspaces",
- "serde_json",
- "sha2 0.10.9",
- "tokio",
-]
-
-[[package]]
 name = "lazy_static"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2280,6 +2267,7 @@ dependencies = [
  "libc",
  "near-abi-client",
  "near-account-id",
+ "near-chain-configs",
  "near-crypto",
  "near-gas",
  "near-jsonrpc-client",
@@ -2547,6 +2535,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "85eae3c4ed2f50dcfe72643da4befc30deadb458a9b590d720cde2f2b1e97da9"
 dependencies = [
  "zerocopy",
+]
+
+[[package]]
+name = "preavis"
+version = "0.9.0"
+dependencies = [
+ "anyhow",
+ "near-jsonrpc-primitives",
+ "near-primitives",
+ "near-sandbox",
+ "near-sdk",
+ "near-workspaces",
+ "serde_json",
+ "sha2 0.10.9",
+ "tokio",
 ]
 
 [[package]]

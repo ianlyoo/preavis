@@ -1,6 +1,6 @@
 [package]
 name = "preavis"
-version = "0.8.0"
+version = "0.9.0"
 edition = "2024"
 publish = false
 description = "An agent spending mandate on NEAR: you hold the agent's key, try to make it pay you."
@@ -18,7 +18,9 @@ near-sdk = "=5.30.1"
 
 [dev-dependencies]
 near-sdk = { version = "=5.30.1", features = ["non-contract-usage"] }
-near-workspaces = "=0.24.0"
+near-workspaces = { version = "=0.24.0", features = ["experimental"] }
+near-primitives = "=0.38.0"
+near-jsonrpc-primitives = "=0.38.0"
 near-sandbox = "=0.4.0"
 anyhow = "1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
@@ -32,3 +34,4 @@ lto = true
 debug = false
 panic = "abort"
 overflow-checks = true
+strip = true
