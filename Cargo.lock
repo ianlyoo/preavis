@@ -1671,7 +1671,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "keydare"
+name = "preavis"
 version = "0.8.0"
 dependencies = [
  "anyhow",

@@ -1,4 +1,4 @@
-//! `npm run attack-local`: runs the attacks in attack/inputs.json (or $KEYDARE_ATTACKS) against a
+//! `npm run attack-local`: runs the attacks in attack/inputs.json (or $PREAVIS_ATTACKS) against a
 //! fresh sandbox mandate with the agent's key, then checks that no invariant broke.
 mod common;
 
@@ -42,7 +42,7 @@ fn short(error: &str) -> String {
 
 #[tokio::test]
 async fn attack_local() -> Result<()> {
-    let path = std::env::var("KEYDARE_ATTACKS").unwrap_or_else(|_| "attack/inputs.json".into());
+    let path = std::env::var("PREAVIS_ATTACKS").unwrap_or_else(|_| "attack/inputs.json".into());
     let file: Value = serde_json::from_str(&std::fs::read_to_string(&path).with_context(|| path.clone())?)
         .with_context(|| format!("{path} is not valid JSON"))?;
     let attacks = file["attacks"].as_array().context("inputs need an \"attacks\" array")?;

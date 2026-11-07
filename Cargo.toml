@@ -1,10 +1,10 @@
 [package]
-name = "keydare"
+name = "preavis"
 version = "0.8.0"
 edition = "2024"
 publish = false
 description = "An agent spending mandate on NEAR: you hold the agent's key, try to make it pay you."
-repository = "https://github.com/ianlyoo/keydare"
+repository = "https://github.com/ianlyoo/preavis"
 
 [lib]
 crate-type = ["cdylib", "rlib"]

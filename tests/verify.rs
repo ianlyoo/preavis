@@ -18,7 +18,7 @@ async fn verify() -> Result<()> {
     callback_failure(&mut w).await?;
 
     print_attempts(&w.mandate).await?;
-    println!("\nKeyDare verify: {} claims held, 0 broken.", w.ev.rows.len());
+    println!("\nPreavis verify: {} claims held, 0 broken.", w.ev.rows.len());
     Ok(())
 }
 
@@ -135,13 +135,13 @@ async fn callback_failure(w: &mut World<impl near_workspaces::Network + 'static>
 #[test]
 fn prebuilt_matches_source() -> Result<()> {
     let built = sha256_hex(&wasm(None)?);
-    let prebuilt = sha256_hex(&std::fs::read("res/keydare.wasm")?);
-    let recorded = std::fs::read_to_string("res/keydare.wasm.sha256")?;
+    let prebuilt = sha256_hex(&std::fs::read("res/preavis.wasm")?);
+    let recorded = std::fs::read_to_string("res/preavis.wasm.sha256")?;
     ensure!(
         built == prebuilt && recorded.split_whitespace().next() == Some(built.as_str()),
-        "rebuilt wasm {built} differs from res/keydare.wasm {prebuilt} or res/keydare.wasm.sha256 {recorded}"
+        "rebuilt wasm {built} differs from res/preavis.wasm {prebuilt} or res/preavis.wasm.sha256 {recorded}"
     );
-    println!("res/keydare.wasm is byte-identical to this source's build: sha256 {built}");
+    println!("res/preavis.wasm is byte-identical to this source's build: sha256 {built}");
     Ok(())
 }
 

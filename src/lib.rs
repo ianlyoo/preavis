@@ -1,4 +1,4 @@
-//! KeyDare: a spending mandate for an AI agent on NEAR.
+//! Preavis: a spending mandate for an AI agent on NEAR.
 //!
 //! The mandate account holds the budget. The agent may only call `request_spend`; every request is
 //! checked against a fixed policy, charged before the transfer leaves, and settled or released by a
@@ -362,7 +362,7 @@ impl Mandate {
         env::log_str(&format!(
             "EVENT_JSON:{}",
             near_sdk::serde_json::json!({
-                "standard": "keydare", "version": "1.0.0", "event": event, "data": [&attempt]
+                "standard": "preavis", "version": "1.0.0", "event": event, "data": [&attempt]
             })
         ));
         if attempt.index == self.attempts.len() {

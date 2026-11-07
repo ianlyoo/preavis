@@ -1,5 +1,5 @@
 {
-  "name": "keydare",
+  "name": "preavis",
   "version": "0.8.0",
   "private": true,
   "description": "You hold our agent's key. Try to make it pay you.",
@@ -10,6 +10,6 @@
     "observe-testnet": "node scripts/observe-testnet.mjs",
     "execute-testnet": "cargo test --locked --test testnet -- --ignored --nocapture",
     "build-wasm": "bash scripts/build-wasm.sh",
-    "update-prebuilt": "bash scripts/build-wasm.sh && cp target/wasm32-unknown-unknown/release/keydare.wasm res/ && cd res && sha256sum keydare.wasm > keydare.wasm.sha256"
+    "update-prebuilt": "bash scripts/build-wasm.sh && cp target/wasm32-unknown-unknown/release/preavis.wasm res/ && cd res && sha256sum preavis.wasm > preavis.wasm.sha256"
   }
 }

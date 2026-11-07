@@ -24,7 +24,7 @@ pub fn wasm(feature: Option<&str>) -> Result<Vec<u8>> {
         None => format!("{root}/target"),
     };
     ensure!(build.status().context("run scripts/build-wasm.sh")?.success(), "wasm build failed");
-    Ok(std::fs::read(format!("{target}/wasm32-unknown-unknown/release/keydare.wasm"))?)
+    Ok(std::fs::read(format!("{target}/wasm32-unknown-unknown/release/preavis.wasm"))?)
 }
 
 pub fn sha256_hex(bytes: &[u8]) -> String {
@@ -38,14 +38,15 @@ pub struct Evidence {
 }
 
 impl Evidence {
-    pub fn held(&mut self, claim: &str, layer: &str, observed: &str, tx: Option<&ExecutionFinalResult>) {
-        let tx = tx.map(|r| r.outcome().transaction_hash.to_string());
+    pub fn held(&mut self, claim: &str, layer: &str, observed: &str, result: Option<&ExecutionFinalResult>) {
+        let tx = result.map(|r| r.outcome().transaction_hash.to_string());
         println!("HELD {:>2}  [{layer}] {claim}", self.rows.len() + 1);
         println!("         observed: {observed}");
         if let (true, Some(tx)) = (self.testnet, &tx) {
             println!("         https://testnet.nearblocks.io/txns/{tx}");
         }
-        self.rows.push(json!({"claim": claim, "layer": layer, "observed": observed, "tx": tx}));
+        let status = tx.as_ref().and(result).map(|r| if r.is_success() { "success" } else { "failure" });
+        self.rows.push(json!({"claim": claim, "layer": layer, "observed": observed, "tx": tx, "tx_status": status}));
     }
 }
 
@@ -65,9 +66,12 @@ pub struct World<N: Network + 'static> {
     pub ev: Evidence,
 }
 
+/// Always with a fresh random key: without `.keys()`, near-workspaces derives the key from a
+/// fixed public seed, which on testnet would let anyone sign for the account.
 pub async fn subaccount(owner: &Account, name: &str, balance: NearToken) -> Result<Account> {
     Ok(owner
         .create_subaccount(name)
+        .keys(SecretKey::from_random(KeyType::ED25519))
         .initial_balance(balance)
         .transact()
         .await?
