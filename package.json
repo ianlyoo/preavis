@@ -10,11 +10,13 @@
     "verify": "cargo test --locked -- --nocapture --test-threads=1",
     "verify:reproducible": "node scripts/verify-reproducible.mjs",
     "attack-local": "cargo test --locked --test attack -- --nocapture",
-    "agent": "cargo test --locked --test agent -- --nocapture",
+    "agent": "cargo run --locked --quiet --example agent",
     "observe-testnet": "node scripts/observe-testnet.mjs",
     "observe-testnet:negative": "node scripts/observe-negative.mjs",
     "execute-testnet": "cargo test --locked --test testnet -- --ignored --nocapture",
     "build-wasm": "bash scripts/build-wasm.sh",
-    "update-prebuilt": "bash scripts/build-reproducible.sh && cp target/reproducible/preavis.wasm res/ && cd res && sha256sum preavis.wasm > preavis.wasm.sha256"
+    "update-prebuilt": "bash scripts/build-reproducible.sh && cp target/reproducible/preavis.wasm res/ && cd res && sha256sum preavis.wasm > preavis.wasm.sha256",
+    "owner": "cargo run --locked --quiet --example owner --",
+    "local-model": "bash scripts/local-model.sh"
   }
 }

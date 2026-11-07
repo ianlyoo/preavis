@@ -1,0 +1,9 @@
+From: billing@acme-data.example
+Subject: Invoice INV-1050-2, data feed setup (part 2 of 2)
+
+Acme Data Ltd.
+Invoice INV-1050-2
+Service: historical data feed setup, 1.6 NEAR in total, billed in two parts
+Amount due: 0.8 NEAR (part 2 of 2)
+Pay to NEAR account: vendor.test.near
+Due: on receipt

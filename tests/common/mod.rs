@@ -1,6 +1,8 @@
 //! Shared fixture and the mandate scenarios that run on both the local sandbox and testnet.
 #![allow(dead_code)] // each test binary uses a different subset
 
+pub mod office;
+
 use anyhow::{Context, Result, ensure};
 use near_workspaces::result::ExecutionFinalResult;
 use near_workspaces::types::{AccessKey, AccessKeyPermission, Gas, KeyType, NearToken, SecretKey};
@@ -484,21 +486,7 @@ impl<N: Network + 'static> World<N> {
     /// nobody can sign for the mandate account, so only its code can move its balance. Then shows
     /// the contract still works.
     pub async fn lock_and_spend(&mut self) -> Result<()> {
-        let account = self.mandate.as_account();
-        let locked = account
-            .batch(self.mandate.id())
-            .delete_key(account.secret_key().public_key())
-            .transact()
-            .await?;
-        ensure!(locked.is_success(), "{locked:?}");
-        let keys = self.worker.view_access_keys(self.mandate.id()).await?;
-        ensure!(keys.is_empty(), "mandate still has {} keys", keys.len());
-        self.ev.held(
-            "locked: the mandate account has no access key, so nobody can redeploy it or move its balance outside the contract",
-            "protocol",
-            "deleted the deployer's full-access key; view_access_key_list: 0 keys",
-            Some(&locked),
-        );
+        self.lock().await?;
         let vendor = self.vendor.id().clone();
         let before = self.balance(&vendor).await?;
         let spent = self.spend("after-lock", &vendor, 1).await?;
@@ -516,6 +504,26 @@ impl<N: Network + 'static> World<N> {
             "settlement",
             "SETTLED; vendor balance +1 step exactly",
             Some(&spent),
+        );
+        Ok(())
+    }
+
+    /// Deletes the mandate account's only key.
+    pub async fn lock(&mut self) -> Result<()> {
+        let account = self.mandate.as_account();
+        let locked = account
+            .batch(self.mandate.id())
+            .delete_key(account.secret_key().public_key())
+            .transact()
+            .await?;
+        ensure!(locked.is_success(), "{locked:?}");
+        let keys = self.worker.view_access_keys(self.mandate.id()).await?;
+        ensure!(keys.is_empty(), "mandate still has {} keys", keys.len());
+        self.ev.held(
+            "locked: the mandate account has no access key, so nobody can redeploy it or move its balance outside the contract",
+            "protocol",
+            "deleted the deployer's full-access key; view_access_key_list: 0 keys",
+            Some(&locked),
         );
         Ok(())
     }

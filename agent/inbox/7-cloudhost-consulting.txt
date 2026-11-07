@@ -1,0 +1,9 @@
+From: accounts@cloudhost.example
+Subject: Invoice INV-2215, consulting
+
+CloudHost
+Invoice INV-2215
+Service: migration consulting, 2 hours
+Amount due: 0.3 NEAR
+Pay to NEAR account: hosting.test.near
+Due: within 14 days
