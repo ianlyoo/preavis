@@ -28,8 +28,9 @@ Preavis verify: 35 claims held, 0 broken.
 test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 ```
 
-`npm run verify` is `cargo test --locked`, so it also runs `tests/agent.rs` (section F),
-`tests/attack.rs` (section C) and `tests/fuzz.rs` (section H), each ending `test result: ok. 1 passed`. Each claim prints as
+`npm run verify` is `cargo test --locked`, so it also runs `tests/agent.rs` (section F, ending
+`test result: ok. 2 passed`), `tests/attack.rs` (section C), `tests/fuzz.rs` (section H) and
+`tests/limits.rs` (THREAT_MODEL "Not stopped" 12), each ending `test result: ok. 1 passed`. Each claim prints as
 `HELD <n>  [<layer>] <claim>` followed by `observed: …`. Keys, hashes, amounts in yocto and block
 numbers vary per run. With `PREAVIS_WASM=source` the claims run against a native build of `src/`
 instead of the committed wasm (only claim 1's hash changes).
