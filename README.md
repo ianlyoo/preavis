@@ -54,7 +54,10 @@ challenge mandate.
 
 Where it was run:
 
-- **x86_64:** FRESH_CLONE_RESULT
+- **x86_64:** a fresh clone of this repository at commit `7b83185` (v1.0's code; the tag adds only
+  this paragraph) in a clean `ubuntu:24.04` container, following the steps above: `npm run verify`
+  exited 0 in 280 s, apt packages, rustup, downloads and compilation included. It ended
+  `Preavis verify: 35 claims held, 0 broken.`
 - **arm64 (Apple Silicon, v0.9, measured by the second judge round):** `npm run verify` exited 0 in
   190 s including downloads. v1.0 changes nothing that depends on the host
   architecture; we have no arm64 host and did not re-run it. `npm run verify:reproducible` there:
