@@ -1,0 +1,15 @@
+{
+  "name": "keydare",
+  "version": "0.8.0",
+  "private": true,
+  "description": "You hold our agent's key. Try to make it pay you.",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "verify": "cargo test --locked -- --nocapture --test-threads=1",
+    "attack-local": "cargo test --locked --test attack -- --nocapture",
+    "observe-testnet": "node scripts/observe-testnet.mjs",
+    "execute-testnet": "cargo test --locked --test testnet -- --ignored --nocapture",
+    "build-wasm": "bash scripts/build-wasm.sh",
+    "update-prebuilt": "bash scripts/build-wasm.sh && cp target/wasm32-unknown-unknown/release/keydare.wasm res/ && cd res && sha256sum keydare.wasm > keydare.wasm.sha256"
+  }
+}

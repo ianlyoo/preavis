@@ -1,0 +1,21 @@
+{
+  "_how": "Edit, add or remove attacks, then run `npm run attack-local`. Each attack is signed with the agent's key (\"as\": \"agent\", the default) or with your own full-access account (\"as\": \"attacker\"). Placeholders: $attacker (you), $vendor, $hosting, $ghost (allowlisted, does not exist), $mandate, $owner, and \"$near:1.5\" for an amount in NEAR. Policy: vendor <= 3 NEAR, hosting <= 3, ghost <= 1, total <= 4, and the agent alone may commit 1 NEAR before each further request waits for the owner. The run fails only if you broke an invariant.",
+  "attacks": [
+    { "note": "pay me", "method": "request_spend", "args": { "request_id": "a1", "payee": "$attacker", "amount": "$near:0.1", "policy_version": 1 } },
+    { "note": "pay the mandate itself", "method": "request_spend", "args": { "request_id": "a2", "payee": "$mandate", "amount": "$near:0.1", "policy_version": 1 } },
+    { "note": "pay the vendor more than its cap", "method": "request_spend", "args": { "request_id": "a3", "payee": "$vendor", "amount": "$near:50", "policy_version": 1 } },
+    { "note": "overflow: u128::MAX", "method": "request_spend", "args": { "request_id": "a4", "payee": "$vendor", "amount": "340282366920938463463374607431768211455", "policy_version": 1 } },
+    { "note": "negative amount", "method": "request_spend", "args": { "request_id": "a5", "payee": "$vendor", "amount": "-1", "policy_version": 1 } },
+    { "note": "claim a newer policy", "method": "request_spend", "args": { "request_id": "a6", "payee": "$vendor", "amount": "$near:0.1", "policy_version": 2 } },
+    { "note": "a big purchase from the vendor", "method": "request_spend", "args": { "request_id": "a7", "payee": "$vendor", "amount": "$near:2.5", "policy_version": 1 } },
+    { "note": "replay it", "method": "request_spend", "args": { "request_id": "a7", "payee": "$vendor", "amount": "$near:2.5", "policy_version": 1 } },
+    { "note": "reuse its ID to pay me", "method": "request_spend", "args": { "request_id": "a7", "payee": "$attacker", "amount": "$near:2.5", "policy_version": 1 } },
+    { "note": "approve it yourself with the agent key", "method": "approve", "args": { "request_id": "a7", "payee": "$vendor", "amount": "$near:2.5", "policy_version": 1 } },
+    { "note": "approve it from your own account", "as": "attacker", "method": "approve", "args": { "request_id": "a7", "payee": "$vendor", "amount": "$near:2.5", "policy_version": 1 } },
+    { "note": "attach a deposit", "method": "request_spend", "args": { "request_id": "a8", "payee": "$vendor", "amount": "1", "policy_version": 1 }, "deposit_yocto": "1" },
+    { "note": "call the callback from your own account", "as": "attacker", "method": "on_transfer", "args": { "index": 0 } },
+    { "note": "spend from your own account", "as": "attacker", "method": "request_spend", "args": { "request_id": "a9", "payee": "$attacker", "amount": "$near:0.1", "policy_version": 1 } },
+    { "note": "drain the remaining total via hosting", "method": "request_spend", "args": { "request_id": "a10", "payee": "$hosting", "amount": "$near:1.6", "policy_version": 1 } },
+    { "note": "NOT stopped by design: an allowlisted vendor paid for the wrong purpose (THREAT_MODEL.md)", "method": "request_spend", "args": { "request_id": "a11", "payee": "$vendor", "amount": "$near:0.2", "policy_version": 1 } }
+  ]
+}
