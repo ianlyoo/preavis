@@ -12,12 +12,18 @@ use serde_json::json;
 #[tokio::test]
 #[ignore = "uses NEAR testnet and the faucet; run with `npm run execute-testnet`"]
 async fn execute_testnet() -> Result<()> {
-    let rpc = std::env::var("PREAVIS_TESTNET_RPC").unwrap_or_else(|_| "https://test.rpc.fastnear.com".into());
+    let rpc = std::env::var("PREAVIS_TESTNET_RPC")
+        .unwrap_or_else(|_| "https://test.rpc.fastnear.com".into());
     let worker = near_workspaces::testnet().rpc_addr(&rpc).await?;
     let owner = match std::env::var("PREAVIS_OWNER_CREDENTIALS") {
         Ok(path) => Account::from_file(&path, &worker).with_context(|| path)?,
         Err(_) => {
-            let id = format!("preavis-{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?.as_secs());
+            let id = format!(
+                "preavis-{}",
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)?
+                    .as_secs()
+            );
             worker
                 .create_root_account_subaccount(id.parse()?, SecretKey::from_random(KeyType::ED25519))
                 .await
@@ -28,14 +34,29 @@ async fn execute_testnet() -> Result<()> {
     let keys = format!(".credentials/testnet/{}", owner.id());
     std::fs::create_dir_all(&keys)?;
     owner.store_credentials(&keys).await?;
-    println!("owner {} (credentials saved under {keys}/, not printed)", owner.id());
+    println!(
+        "owner {} (credentials saved under {keys}/, not printed)",
+        owner.id()
+    );
 
     let wasm = contract_wasm()?;
-    let mut w = setup(worker, owner, NEAR / 10_000, NearToken::from_near(5), &wasm, true).await?;
+    let mut w = setup(
+        worker,
+        owner,
+        NEAR / 10_000,
+        NearToken::from_near(5),
+        &wasm,
+        true,
+    )
+    .await?;
     w.treasury.store_credentials(&keys).await?;
     main_flow(&mut w).await?;
-    let offline = w.agent_offline_key.clone().context("agent not handed over")?;
-    let agent_admin = near_workspaces::Account::from_secret_key(w.agent.id().clone(), offline.clone(), &w.worker);
+    let offline = w
+        .agent_offline_key
+        .clone()
+        .context("agent not handed over")?;
+    let agent_admin =
+        near_workspaces::Account::from_secret_key(w.agent.id().clone(), offline.clone(), &w.worker);
     agent_admin.store_credentials(&keys).await?;
     w.lock_and_spend().await?;
     print_attempts(&w.mandate).await?;
@@ -50,9 +71,17 @@ async fn execute_testnet() -> Result<()> {
     }
     let mut balances = serde_json::Map::new();
     for account in [&w.vendor, &w.hosting, &w.attacker, &w.treasury] {
-        balances.insert(account.id().to_string(), json!(w.balance(account.id()).await?.to_string()));
+        balances.insert(
+            account.id().to_string(),
+            json!(w.balance(account.id()).await?.to_string()),
+        );
     }
-    let attempts: serde_json::Value = w.mandate.view("attempts").args_json(json!({"from": 0, "limit": 100})).await?.json()?;
+    let attempts: serde_json::Value = w
+        .mandate
+        .view("attempts")
+        .args_json(json!({"from": 0, "limit": 100}))
+        .await?
+        .json()?;
 
     let record = json!({
         "network": "testnet",
@@ -73,7 +102,13 @@ async fn execute_testnet() -> Result<()> {
         "claims": w.ev.rows,
         "end_state": {"mandate": w.summary().await?, "attempts": attempts, "balances": balances},
     });
-    std::fs::write("target/preavis-testnet-run.json", serde_json::to_string_pretty(&record)?)?;
-    println!("\nPreavis testnet: {} claims held, 0 broken. Run record: target/preavis-testnet-run.json", w.ev.rows.len());
+    std::fs::write(
+        "target/preavis-testnet-run.json",
+        serde_json::to_string_pretty(&record)?,
+    )?;
+    println!(
+        "\nPreavis testnet: {} claims held, 0 broken. Run record: target/preavis-testnet-run.json",
+        w.ev.rows.len()
+    );
     Ok(())
 }

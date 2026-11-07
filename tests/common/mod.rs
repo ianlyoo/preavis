@@ -23,8 +23,16 @@ pub fn wasm(feature: Option<&str>) -> Result<Vec<u8>> {
         }
         None => format!("{root}/target"),
     };
-    ensure!(build.status().context("run scripts/build-wasm.sh")?.success(), "wasm build failed");
-    Ok(std::fs::read(format!("{target}/wasm32-unknown-unknown/release/preavis.wasm"))?)
+    ensure!(
+        build
+            .status()
+            .context("run scripts/build-wasm.sh")?
+            .success(),
+        "wasm build failed"
+    );
+    Ok(std::fs::read(format!(
+        "{target}/wasm32-unknown-unknown/release/preavis.wasm"
+    ))?)
 }
 
 /// The contract the scenarios deploy: the committed `res/preavis.wasm` (the bytes testnet runs), or
@@ -33,11 +41,17 @@ pub fn contract_wasm() -> Result<Vec<u8>> {
     if std::env::var("PREAVIS_WASM").as_deref() == Ok("source") {
         return wasm(None);
     }
-    Ok(std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/res/preavis.wasm"))?)
+    Ok(std::fs::read(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/res/preavis.wasm"
+    ))?)
 }
 
 pub fn sha256_hex(bytes: &[u8]) -> String {
-    Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect()
+    Sha256::digest(bytes)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
 }
 
 /// One line per claim that held, printed as it happens and kept for the testnet receipt file.
@@ -47,7 +61,13 @@ pub struct Evidence {
 }
 
 impl Evidence {
-    pub fn held(&mut self, claim: &str, layer: &str, observed: &str, result: Option<&ExecutionFinalResult>) {
+    pub fn held(
+        &mut self,
+        claim: &str,
+        layer: &str,
+        observed: &str,
+        result: Option<&ExecutionFinalResult>,
+    ) {
         let tx = result.map(|r| r.outcome().transaction_hash.to_string());
         println!("HELD {:>2}  [{layer}] {claim}", self.rows.len() + 1);
         println!("         observed: {observed}");
@@ -75,16 +95,25 @@ pub fn events(result: &ExecutionFinalResult) -> Vec<Value> {
 
 /// Every NEAR transfer the transaction's receipts carried, as `{from, to, amount}`, read back from
 /// the node receipt by receipt. Gas refunds (sent by `system`) are left out.
-pub async fn transfers<N: Network + 'static>(worker: &Worker<N>, result: &ExecutionFinalResult) -> Result<Vec<Value>> {
+pub async fn transfers<N: Network + 'static>(
+    worker: &Worker<N>,
+    result: &ExecutionFinalResult,
+) -> Result<Vec<Value>> {
     let mut out = vec![];
     for id in result.outcomes().iter().flat_map(|o| o.receipt_ids.clone()) {
         let receipt_id = id.to_string().parse().map_err(|e| anyhow::anyhow!("{e}"))?;
-        let receipt = worker.receipt(near_jsonrpc_primitives::types::receipts::ReceiptReference { receipt_id }).await?;
+        let receipt = worker
+            .receipt(near_jsonrpc_primitives::types::receipts::ReceiptReference { receipt_id })
+            .await?;
         let receipt = serde_json::to_value(&receipt)?;
         if receipt["predecessor_id"] == "system" {
             continue;
         }
-        for action in receipt["receipt"]["Action"]["actions"].as_array().into_iter().flatten() {
+        for action in receipt["receipt"]["Action"]["actions"]
+            .as_array()
+            .into_iter()
+            .flatten()
+        {
             if let Some(amount) = action["Transfer"].get("deposit") {
                 out.push(json!({"from": receipt["predecessor_id"], "to": receipt["receiver_id"], "amount": amount}));
             }
@@ -94,13 +123,22 @@ pub async fn transfers<N: Network + 'static>(worker: &Worker<N>, result: &Execut
 }
 
 /// The signed transaction's receiver and actions, as the node reports them, for the receipt file.
-pub async fn transaction<N: Network + 'static>(worker: &Worker<N>, tx: &str, signer: &str) -> Result<Value> {
+pub async fn transaction<N: Network + 'static>(
+    worker: &Worker<N>,
+    tx: &str,
+    signer: &str,
+) -> Result<Value> {
     let info = near_jsonrpc_primitives::types::transactions::TransactionInfo::TransactionId {
         tx_hash: tx.parse().map_err(|e| anyhow::anyhow!("{e}"))?,
         sender_account_id: signer.parse()?,
     };
-    let status = worker.tx_status(info, near_primitives::views::TxExecutionStatus::Final).await?;
-    let outcome = status.final_execution_outcome.context("no outcome")?.into_outcome();
+    let status = worker
+        .tx_status(info, near_primitives::views::TxExecutionStatus::Final)
+        .await?;
+    let outcome = status
+        .final_execution_outcome
+        .context("no outcome")?
+        .into_outcome();
     Ok(json!({"receiver": outcome.transaction.receiver_id, "actions": outcome.transaction.actions}))
 }
 
@@ -140,6 +178,8 @@ pub struct World<N: Network + 'static> {
     pub step: u128,
     /// The agent's full-access key, held by the owner after the hand-over.
     pub agent_offline_key: Option<SecretKey>,
+    /// The demo mandate's `expires_at` block height.
+    pub expires_at: u64,
     pub ev: Evidence,
 }
 
@@ -155,12 +195,26 @@ pub async fn subaccount(owner: &Account, name: &str, balance: NearToken) -> Resu
         .into_result()?)
 }
 
+/// The demo mandate's period: a week of blocks, at about one block a second.
+pub const PERIOD_BLOCKS: u64 = 604_800;
+/// The demo mandate expires this many periods after it is created.
+pub const PERIODS: u64 = 6;
+
 /// The fixed policy every demo mandate uses, in steps: vendor ≤ 30, hosting ≤ 30, ghost ≤ 10,
-/// total ≤ 40, the agent alone may commit 10, and at most 30 payments and 30 stored denials.
-pub fn policy(vendor: &AccountId, hosting: &AccountId, ghost: &AccountId, step: u128) -> Value {
+/// total ≤ 40; per period of `PERIOD_BLOCKS` the agent alone may commit 10, and at most 15
+/// requests pass the checks and 15 denials are stored.
+pub fn policy(
+    vendor: &AccountId,
+    hosting: &AccountId,
+    ghost: &AccountId,
+    step: u128,
+    expires_at: u64,
+) -> Value {
     json!({
-        "max_payments": 30,
-        "max_denials": 30,
+        "max_payments": 15,
+        "max_denials": 15,
+        "period_blocks": PERIOD_BLOCKS,
+        "expires_at": expires_at,
         "version": 1,
         "payees": {
             vendor.as_str(): (30 * step).to_string(),
@@ -185,7 +239,9 @@ pub async fn deploy_mandate(
     let mandate = account.deploy(wasm).await?.into_result()?;
     let init = mandate
         .call("new")
-        .args_json(json!({"owner": owner.id(), "agent": agent, "refund_to": refund_to, "policy": policy}))
+        .args_json(
+            json!({"owner": owner.id(), "agent": agent, "refund_to": refund_to, "policy": policy}),
+        )
         .transact()
         .await?;
     ensure!(init.is_success(), "init failed: {init:?}");
@@ -207,17 +263,43 @@ pub async fn setup<N: Network + 'static>(
     let attacker = subaccount(&owner, "attacker", small).await?;
     let treasury = subaccount(&owner, "treasury", small).await?;
     let ghost: AccountId = format!("ghost.{}", owner.id()).parse()?;
-    let policy = policy(vendor.id(), hosting.id(), &ghost, step);
-    let (mandate, init) =
-        deploy_mandate(&owner, "mandate", mandate_balance, wasm, agent.id(), treasury.id(), policy).await?;
-    let mut ev = Evidence { rows: vec![], testnet };
+    let expires_at = worker.view_block().await?.height() + PERIODS * PERIOD_BLOCKS;
+    let policy = policy(vendor.id(), hosting.id(), &ghost, step, expires_at);
+    let (mandate, init) = deploy_mandate(
+        &owner,
+        "mandate",
+        mandate_balance,
+        wasm,
+        agent.id(),
+        treasury.id(),
+        policy,
+    )
+    .await?;
+    let mut ev = Evidence {
+        rows: vec![],
+        testnet,
+    };
     ev.held(
         "mandate deployed and initialized with a fixed policy",
         "setup",
         &format!("{} code sha256 {}", mandate.id(), sha256_hex(wasm)),
         Some(&init),
     );
-    Ok(World { worker, owner, agent, mandate, vendor, hosting, attacker, treasury, ghost, step, agent_offline_key: None, ev })
+    Ok(World {
+        worker,
+        owner,
+        agent,
+        mandate,
+        vendor,
+        hosting,
+        attacker,
+        treasury,
+        ghost,
+        step,
+        agent_offline_key: None,
+        expires_at,
+        ev,
+    })
 }
 
 impl<N: Network + 'static> World<N> {
@@ -249,7 +331,12 @@ impl<N: Network + 'static> World<N> {
             .await?)
     }
 
-    pub async fn spend(&self, id: &str, payee: &AccountId, steps: u128) -> Result<ExecutionFinalResult> {
+    pub async fn spend(
+        &self,
+        id: &str,
+        payee: &AccountId,
+        steps: u128,
+    ) -> Result<ExecutionFinalResult> {
         self.spend_as(&self.agent, id, payee, steps, 1).await
     }
 
@@ -258,16 +345,28 @@ impl<N: Network + 'static> World<N> {
     }
 
     pub async fn committed(&self) -> Result<u128> {
-        Ok(self.summary().await?["committed"].as_str().context("committed")?.parse()?)
+        Ok(self.summary().await?["committed"]
+            .as_str()
+            .context("committed")?
+            .parse()?)
     }
 
     pub async fn request(&self, id: &str) -> Result<Value> {
-        Ok(self.mandate.view("get_request").args_json(json!({"request_id": id})).await?.json()?)
+        Ok(self
+            .mandate
+            .view("get_request")
+            .args_json(json!({"request_id": id}))
+            .await?
+            .json()?)
     }
 
     pub async fn attempt(&self, index: &Value) -> Result<Value> {
-        let page: Vec<Value> =
-            self.mandate.view("attempts").args_json(json!({"from": index, "limit": 1})).await?.json()?;
+        let page: Vec<Value> = self
+            .mandate
+            .view("attempts")
+            .args_json(json!({"from": index, "limit": 1}))
+            .await?
+            .json()?;
         page.into_iter().next().context("attempt not stored")
     }
 
@@ -288,7 +387,9 @@ impl<N: Network + 'static> World<N> {
     ) -> Result<()> {
         let (version, id, payee, steps) = request;
         let before = self.committed().await?;
-        let result = self.spend_as(&self.agent, id, payee, steps, version).await?;
+        let result = self
+            .spend_as(&self.agent, id, payee, steps, version)
+            .await?;
         ensure!(
             result.is_success() && result.receipt_failures().is_empty(),
             "{claim}: a denial must return normally, got {result:?}"
@@ -304,7 +405,15 @@ impl<N: Network + 'static> World<N> {
         );
         ensure!(logged, "{claim}: no denied event");
         ensure!(self.committed().await? == before, "{claim}: budget changed");
-        self.ev.held(claim, "contract", &format!("DENIED {reason}, record #{} + event, budget unchanged", stored["index"]), Some(&result));
+        self.ev.held(
+            claim,
+            "contract",
+            &format!(
+                "DENIED {reason}, record #{} + event, budget unchanged",
+                stored["index"]
+            ),
+            Some(&result),
+        );
         Ok(())
     }
 
@@ -340,20 +449,31 @@ impl<N: Network + 'static> World<N> {
                     "unexpected function-call key {p:?}"
                 ),
                 AccessKeyPermission::FullAccess => {
-                    ensure!(k.public_key == offline.public_key(), "unknown full-access key")
+                    ensure!(
+                        k.public_key == offline.public_key(),
+                        "unknown full-access key"
+                    )
                 }
             }
         }
         println!();
-        println!("  this is now your agent: {}", self.agent.id());
-        println!("  your key: {} (generated on this machine)", key.public_key());
-        println!("  it can call {}.request_spend and nothing else.", self.mandate.id());
-        println!("  the agent's full-access key is the owner's, offline; it only exists to fire the agent.");
+        println!("  the agent: {}", self.agent.id());
+        println!(
+            "  its working key, public half: {} (the secret half was generated on this machine and signs every agent call below)",
+            key.public_key()
+        );
+        println!(
+            "  it can call {}.request_spend and nothing else.",
+            self.mandate.id()
+        );
+        println!(
+            "  the agent's full-access key is the owner's, offline; it only exists to fire the agent."
+        );
         println!();
         self.ev.held(
-            "your key (the agent's working key) is a function-call key for request_spend on the mandate only",
+            "the agent's working key (generated on this machine) is a function-call key for request_spend on the mandate only",
             "protocol",
-            "agent keys: FunctionCall receiver=mandate methods=[request_spend] (yours) + the owner's offline full-access key",
+            "agent keys: FunctionCall receiver=mandate methods=[request_spend] (the working key) + the owner's offline full-access key",
             Some(&changed),
         );
         self.agent_offline_key = Some(offline);
@@ -365,7 +485,11 @@ impl<N: Network + 'static> World<N> {
     /// the contract still works.
     pub async fn lock_and_spend(&mut self) -> Result<()> {
         let account = self.mandate.as_account();
-        let locked = account.batch(self.mandate.id()).delete_key(account.secret_key().public_key()).transact().await?;
+        let locked = account
+            .batch(self.mandate.id())
+            .delete_key(account.secret_key().public_key())
+            .transact()
+            .await?;
         ensure!(locked.is_success(), "{locked:?}");
         let keys = self.worker.view_access_keys(self.mandate.id()).await?;
         ensure!(keys.is_empty(), "mandate still has {} keys", keys.len());
@@ -378,16 +502,30 @@ impl<N: Network + 'static> World<N> {
         let vendor = self.vendor.id().clone();
         let before = self.balance(&vendor).await?;
         let spent = self.spend("after-lock", &vendor, 1).await?;
-        ensure!(spent.is_success() && spent.receipt_failures().is_empty(), "{spent:?}");
+        ensure!(
+            spent.is_success() && spent.receipt_failures().is_empty(),
+            "{spent:?}"
+        );
         ensure!(self.request("after-lock").await?["status"] == "SETTLED");
-        ensure!(self.balance(&vendor).await? - before == self.n(1), "vendor not paid exactly 1 step");
-        self.ev.held("after the lock the contract still works: an in-policy request settles", "settlement", "SETTLED; vendor balance +1 step exactly", Some(&spent));
+        ensure!(
+            self.balance(&vendor).await? - before == self.n(1),
+            "vendor not paid exactly 1 step"
+        );
+        self.ev.held(
+            "after the lock the contract still works: an in-policy request settles",
+            "settlement",
+            "SETTLED; vendor balance +1 step exactly",
+            Some(&spent),
+        );
         Ok(())
     }
 
     /// The owner deletes the agent's working key with the offline full-access key.
     pub async fn fire_agent(&mut self) -> Result<()> {
-        let offline = self.agent_offline_key.clone().context("agent not handed over")?;
+        let offline = self
+            .agent_offline_key
+            .clone()
+            .context("agent not handed over")?;
         let owner_side = Account::from_secret_key(self.agent.id().clone(), offline, &self.worker);
         let fired = owner_side
             .batch(self.agent.id())
@@ -395,14 +533,26 @@ impl<N: Network + 'static> World<N> {
             .transact()
             .await?;
         ensure!(fired.is_success(), "{fired:?}");
-        let after = self.spend("after-firing", &self.vendor.id().clone(), 1).await;
-        let error = format!("{:?}", after.err().context("a fired agent's key still works")?);
+        let after = self
+            .spend("after-firing", &self.vendor.id().clone(), 1)
+            .await;
+        let error = format!(
+            "{:?}",
+            after.err().context("a fired agent's key still works")?
+        );
         ensure!(error.contains("InvalidAccessKeyError"), "{error}");
         ensure!(self.request("after-firing").await?.is_null());
         self.ev.held(
             "firing the agent takes one key deletion; its next request is refused",
             "protocol",
-            &format!("owner deleted the working key; next request: RPC error {}", if error.contains("AccessKeyNotFound") { "InvalidAccessKeyError(AccessKeyNotFound)" } else { "InvalidAccessKeyError" }),
+            &format!(
+                "owner deleted the working key; next request: RPC error {}",
+                if error.contains("AccessKeyNotFound") {
+                    "InvalidAccessKeyError(AccessKeyNotFound)"
+                } else {
+                    "InvalidAccessKeyError"
+                }
+            ),
             Some(&fired),
         );
         Ok(())
@@ -422,9 +572,22 @@ pub async fn main_flow<N: Network + 'static>(w: &mut World<N>) -> Result<()> {
 
     // Before the hand-over the agent still has a full-access key, so this call reaches the
     // contract and shows the contract's own guard, separate from the key restriction below.
-    let probe = w.agent.call(w.mandate.id(), "reject").args_json(json!({"request_id": "x"})).transact().await?;
-    ensure!(failed_with(&probe, "OWNER_ONLY"), "agent reached an owner method: {probe:?}");
-    w.ev.held("an owner method refuses the agent, even with a full-access key", "contract", "panic OWNER_ONLY, no state change", Some(&probe));
+    let probe = w
+        .agent
+        .call(w.mandate.id(), "reject")
+        .args_json(json!({"request_id": "x"}))
+        .transact()
+        .await?;
+    ensure!(
+        failed_with(&probe, "OWNER_ONLY"),
+        "agent reached an owner method: {probe:?}"
+    );
+    w.ev.held(
+        "an owner method refuses the agent, even with a full-access key",
+        "contract",
+        "panic OWNER_ONLY, no state change",
+        Some(&probe),
+    );
 
     w.hand_over_agent().await?;
 
@@ -436,106 +599,290 @@ pub async fn main_flow<N: Network + 'static>(w: &mut World<N>) -> Result<()> {
         .gas(Gas::from_tgas(100))
         .transact()
         .await;
-    let error = format!("{:?}", deposit.err().context("attaching a deposit was accepted")?);
+    let error = format!(
+        "{:?}",
+        deposit.err().context("attaching a deposit was accepted")?
+    );
     ensure!(error.contains("DepositWithFunctionCall"), "{error}");
-    ensure!(w.request("deposit").await?.is_null(), "refused deposit left a record");
-    w.ev.held("the agent's key cannot attach a deposit", "protocol", "RPC error InvalidAccessKeyError(DepositWithFunctionCall), no record", None);
+    ensure!(
+        w.request("deposit").await?.is_null(),
+        "refused deposit left a record"
+    );
+    w.ev.held(
+        "the agent's key cannot attach a deposit",
+        "protocol",
+        "RPC error InvalidAccessKeyError(DepositWithFunctionCall), no record",
+        None,
+    );
 
-    let wrong = w.agent.call(w.mandate.id(), "approve").args_json(held_args(w, 4)).gas(Gas::from_tgas(100)).transact().await;
-    let error = format!("{:?}", wrong.err().context("the agent's key called approve")?);
+    let wrong = w
+        .agent
+        .call(w.mandate.id(), "approve")
+        .args_json(held_args(w, 4))
+        .gas(Gas::from_tgas(100))
+        .transact()
+        .await;
+    let error = format!(
+        "{:?}",
+        wrong.err().context("the agent's key called approve")?
+    );
     ensure!(error.contains("MethodNameMismatch"), "{error}");
-    w.ev.held("the agent's key cannot call any other method (approve)", "protocol", "RPC error InvalidAccessKeyError(MethodNameMismatch)", None);
+    w.ev.held(
+        "the agent's key cannot call any other method (approve)",
+        "protocol",
+        "RPC error InvalidAccessKeyError(MethodNameMismatch)",
+        None,
+    );
 
-    let owner_spend = w.spend_as(&w.owner, "owner-spend", w.vendor.id(), 1, 1).await?;
+    let owner_spend = w
+        .spend_as(&w.owner, "owner-spend", w.vendor.id(), 1, 1)
+        .await?;
     ensure!(failed_with(&owner_spend, "AGENT_ONLY"), "{owner_spend:?}");
     ensure!(w.request("owner-spend").await?.is_null());
-    w.ev.held("only the agent can request a spend; not even the owner", "contract", "panic AGENT_ONLY, no record", Some(&owner_spend));
+    w.ev.held(
+        "only the agent can request a spend; not even the owner",
+        "contract",
+        "panic AGENT_ONLY, no record",
+        Some(&owner_spend),
+    );
 
     let attacker = w.attacker.id().clone();
     let vendor = w.vendor.id().clone();
     let hosting = w.hosting.id().clone();
     let ghost = w.ghost.clone();
-    w.expect_denied("paying an unlisted account (you) is refused", (1, "pay-me", &attacker, 1), "UNLISTED").await?;
-    w.expect_denied("a request under another policy version is refused", (2, "old-policy", &vendor, 1), "POLICY_VERSION").await?;
-    w.expect_denied("a zero-amount request is refused", (1, "zero", &vendor, 0), "ZERO_AMOUNT").await?;
+    w.expect_denied(
+        "paying an unlisted account (you) is refused",
+        (1, "pay-me", &attacker, 1),
+        "UNLISTED",
+    )
+    .await?;
+    w.expect_denied(
+        "a request under another policy version is refused",
+        (2, "old-policy", &vendor, 1),
+        "POLICY_VERSION",
+    )
+    .await?;
+    w.expect_denied(
+        "a zero-amount request is refused",
+        (1, "zero", &vendor, 0),
+        "ZERO_AMOUNT",
+    )
+    .await?;
 
     let settled = w.spend("buy-1", &vendor, 4).await?;
-    ensure!(settled.is_success() && settled.receipt_failures().is_empty(), "{settled:?}");
+    ensure!(
+        settled.is_success() && settled.receipt_failures().is_empty(),
+        "{settled:?}"
+    );
     let record = w.request("buy-1").await?;
     ensure!(record["status"] == "SETTLED", "{record}");
-    ensure!(w.balance(&vendor).await? - vendor_start == w.n(4), "vendor not paid exactly 4 steps");
+    ensure!(
+        w.balance(&vendor).await? - vendor_start == w.n(4),
+        "vendor not paid exactly 4 steps"
+    );
     ensure!(w.committed().await? == w.n(4));
-    w.ev.held("an in-policy purchase settles", "settlement", "SETTLED after checking the transfer result; vendor balance +4 steps exactly", Some(&settled));
+    w.ev.held(
+        "an in-policy purchase settles",
+        "settlement",
+        "SETTLED after checking the transfer result; vendor balance +4 steps exactly",
+        Some(&settled),
+    );
 
-    w.expect_denied("replaying a settled request is refused", (1, "buy-1", &vendor, 4), "REPLAY").await?;
-    w.expect_denied("reusing a request ID with altered arguments is refused", (1, "buy-1", &vendor, 9), "ALTERED").await?;
-    ensure!(w.balance(&vendor).await? - vendor_start == w.n(4), "replay paid the vendor again");
+    w.expect_denied(
+        "replaying a settled request is refused",
+        (1, "buy-1", &vendor, 4),
+        "REPLAY",
+    )
+    .await?;
+    w.expect_denied(
+        "reusing a request ID with altered arguments is refused",
+        (1, "buy-1", &vendor, 9),
+        "ALTERED",
+    )
+    .await?;
+    ensure!(
+        w.balance(&vendor).await? - vendor_start == w.n(4),
+        "replay paid the vendor again"
+    );
 
     let failed = w.spend("ghost-1", &ghost, 2).await?;
-    ensure!(failed.is_success() && failed.receipt_failures().len() == 1, "{failed:?}");
+    ensure!(
+        failed.is_success() && failed.receipt_failures().len() == 1,
+        "{failed:?}"
+    );
     ensure!(format!("{:?}", failed.receipt_failures()).contains("AccountDoesNotExist"));
     let record = w.request("ghost-1").await?;
-    ensure!(record["status"] == "FAILED" && record["releases"] == 1, "{record}");
-    ensure!(w.committed().await? == w.n(4), "failed transfer kept its charge");
-    w.ev.held("a failed transfer releases its charge exactly once", "settlement", "transfer receipt AccountDoesNotExist; FAILED, releases=1, budget back to 4 steps", Some(&failed));
+    ensure!(
+        record["status"] == "FAILED" && record["releases"] == 1,
+        "{record}"
+    );
+    ensure!(
+        w.committed().await? == w.n(4),
+        "failed transfer kept its charge"
+    );
+    w.ev.held(
+        "a failed transfer releases its charge exactly once",
+        "settlement",
+        "transfer receipt AccountDoesNotExist; FAILED, releases=1, budget back to 4 steps",
+        Some(&failed),
+    );
 
     let split_a = w.spend("split-a", &vendor, 4).await?;
     ensure!(split_a.is_success(), "{split_a:?}");
     let split_b = w.spend("split-b", &vendor, 4).await?;
     ensure!(w.request("split-a").await?["status"] == "SETTLED");
     let held: Value = split_b.clone().json()?;
-    ensure!(held["status"] == "AWAITING_APPROVAL" && held["needs_approval"] == true, "{held}");
-    ensure!(w.balance(&vendor).await? - vendor_start == w.n(8), "held request was paid");
-    ensure!(w.committed().await? == w.n(12), "held request not reserved");
+    ensure!(
+        held["status"] == "AWAITING_APPROVAL" && held["needs_approval"] == true,
+        "{held}"
+    );
+    ensure!(
+        w.balance(&vendor).await? - vendor_start == w.n(8),
+        "held request was paid"
+    );
+    let summary = w.summary().await?;
+    ensure!(
+        summary["committed"] == w.n(8).to_string() && summary["held"] == w.n(4).to_string(),
+        "{summary}"
+    );
     w.ev.held(
-        "splitting a payment does not dodge owner approval: past 10 steps the agent waits",
+        "splitting a payment does not dodge owner approval: past 10 steps in a period the agent waits",
         "contract",
-        "split-a SETTLED, split-b AWAITING_APPROVAL (reserved, not paid)",
+        "split-a SETTLED, split-b AWAITING_APPROVAL (held, not charged, not paid)",
         Some(&split_b),
     );
 
-    let altered = w.owner.call(w.mandate.id(), "approve").args_json(held_args(w, 9)).gas(Gas::from_tgas(100)).transact().await?;
+    let altered = w
+        .owner
+        .call(w.mandate.id(), "approve")
+        .args_json(held_args(w, 9))
+        .gas(Gas::from_tgas(100))
+        .transact()
+        .await?;
     ensure!(failed_with(&altered, "BINDING_MISMATCH"), "{altered:?}");
     let mut other_invoice = held_args(w, 4);
     other_invoice["invoice"] = json!("invoice-something-else");
-    let swapped = w.owner.call(w.mandate.id(), "approve").args_json(other_invoice).gas(Gas::from_tgas(100)).transact().await?;
+    let swapped = w
+        .owner
+        .call(w.mandate.id(), "approve")
+        .args_json(other_invoice)
+        .gas(Gas::from_tgas(100))
+        .transact()
+        .await?;
     ensure!(failed_with(&swapped, "BINDING_MISMATCH"), "{swapped:?}");
     ensure!(w.request("split-b").await?["status"] == "AWAITING_APPROVAL");
-    w.ev.held("an approval with an altered amount is refused", "contract", "panic BINDING_MISMATCH, request still held", Some(&altered));
-    w.ev.held("an approval for a different invoice is refused", "contract", "panic BINDING_MISMATCH, request still held", Some(&swapped));
+    w.ev.held(
+        "an approval with an altered amount is refused",
+        "contract",
+        "panic BINDING_MISMATCH, request still held",
+        Some(&altered),
+    );
+    w.ev.held(
+        "an approval for a different invoice is refused",
+        "contract",
+        "panic BINDING_MISMATCH, request still held",
+        Some(&swapped),
+    );
 
-    let approved = w.owner.call(w.mandate.id(), "approve").args_json(held_args(w, 4)).gas(Gas::from_tgas(100)).transact().await?;
-    ensure!(approved.is_success() && approved.receipt_failures().is_empty(), "{approved:?}");
+    let approved = w
+        .owner
+        .call(w.mandate.id(), "approve")
+        .args_json(held_args(w, 4))
+        .gas(Gas::from_tgas(100))
+        .transact()
+        .await?;
+    ensure!(
+        approved.is_success() && approved.receipt_failures().is_empty(),
+        "{approved:?}"
+    );
     ensure!(w.request("split-b").await?["status"] == "SETTLED");
     ensure!(w.balance(&vendor).await? - vendor_start == w.n(12));
-    w.ev.held("the owner's exact approval pays the held request once", "settlement", "SETTLED; vendor balance +12 steps in total", Some(&approved));
+    w.ev.held(
+        "the owner's exact approval pays the held request once",
+        "settlement",
+        "SETTLED; vendor balance +12 steps in total",
+        Some(&approved),
+    );
 
-    w.expect_denied("exceeding a payee's cap is refused", (1, "big-vendor", &vendor, 20), "PAYEE_CAP").await?;
+    w.expect_denied(
+        "exceeding a payee's cap is refused",
+        (1, "big-vendor", &vendor, 20),
+        "PAYEE_CAP",
+    )
+    .await?;
 
-    let reserve = w.spend("hosting-1", &hosting, 25).await?;
-    ensure!(reserve.clone().json::<Value>()?["status"] == "AWAITING_APPROVAL");
-    ensure!(w.committed().await? == w.n(37));
-    w.expect_denied("exceeding the total cap is refused, held requests included", (1, "vendor-5", &vendor, 5), "TOTAL_CAP").await?;
+    w.expect_denied(
+        "exceeding the total cap is refused",
+        (1, "hosting-29", &hosting, 29),
+        "TOTAL_CAP",
+    )
+    .await?;
 
-    let rejected = w.owner.call(w.mandate.id(), "reject").args_json(json!({"request_id": "hosting-1"})).transact().await?;
-    let record: Value = rejected.clone().json()?;
-    ensure!(record["status"] == "REJECTED" && record["releases"] == 1, "{record}");
+    let hold = w.spend("hosting-1", &hosting, 25).await?;
+    ensure!(hold.clone().json::<Value>()?["status"] == "AWAITING_APPROVAL");
     ensure!(w.committed().await? == w.n(12));
-    let again = w.owner.call(w.mandate.id(), "reject").args_json(json!({"request_id": "hosting-1"})).transact().await?;
-    ensure!(failed_with(&again, "NOT_AWAITING_APPROVAL"), "{again:?}");
-    ensure!(w.committed().await? == w.n(12), "second reject released again");
-    w.ev.held("a rejected request releases its reservation once", "contract", "REJECTED, releases=1; a second reject panics NOT_AWAITING_APPROVAL", Some(&rejected));
 
-    let callback = w.owner.call(w.mandate.id(), "on_transfer").args_json(json!({"index": 0})).transact().await?;
+    let rejected = w
+        .owner
+        .call(w.mandate.id(), "reject")
+        .args_json(json!({"request_id": "hosting-1"}))
+        .transact()
+        .await?;
+    let record: Value = rejected.clone().json()?;
+    ensure!(
+        record["status"] == "REJECTED" && record["releases"] == 0,
+        "{record}"
+    );
+    let summary = w.summary().await?;
+    ensure!(
+        summary["committed"] == w.n(12).to_string() && summary["held"] == "0",
+        "{summary}"
+    );
+    let again = w
+        .owner
+        .call(w.mandate.id(), "reject")
+        .args_json(json!({"request_id": "hosting-1"}))
+        .transact()
+        .await?;
+    ensure!(failed_with(&again, "NOT_AWAITING_APPROVAL"), "{again:?}");
+    ensure!(
+        w.committed().await? == w.n(12),
+        "second reject changed the budget"
+    );
+    w.ev.held(
+        "a rejected request is closed once and nothing is paid",
+        "contract",
+        "REJECTED, held back to 0, committed unchanged; a second reject panics NOT_AWAITING_APPROVAL",
+        Some(&rejected),
+    );
+
+    let callback = w
+        .owner
+        .call(w.mandate.id(), "on_transfer")
+        .args_json(json!({"index": 0}))
+        .transact()
+        .await?;
     ensure!(failed_with(&callback, "is private"), "{callback:?}");
-    w.ev.held("nobody else can call the settlement callback", "contract", "panic: Method on_transfer is private", Some(&callback));
+    w.ev.held(
+        "nobody else can call the settlement callback",
+        "contract",
+        "panic: Method on_transfer is private",
+        Some(&callback),
+    );
 
     let summary = w.summary().await?;
-    ensure!(w.balance(&attacker).await? == attacker_start, "the unlisted account received money");
+    ensure!(
+        w.balance(&attacker).await? == attacker_start,
+        "the unlisted account received money"
+    );
     ensure!(w.balance(&hosting).await? == hosting_start);
     ensure!(w.balance(&vendor).await? - vendor_start == w.n(12));
     ensure!(w.worker.view_account(&ghost).await.is_err());
-    ensure!(summary["committed"] == w.n(12).to_string() && summary["payee_committed"][vendor.as_str()] == w.n(12).to_string(), "{summary}");
+    ensure!(
+        summary["committed"] == w.n(12).to_string()
+            && summary["payee_committed"][vendor.as_str()] == w.n(12).to_string(),
+        "{summary}"
+    );
     w.ev.held(
         "end state: you received nothing; only settled requests moved money",
         "state",
@@ -547,9 +894,16 @@ pub async fn main_flow<N: Network + 'static>(w: &mut World<N>) -> Result<()> {
 
 /// Prints every attempt the mandate recorded, as a table.
 pub async fn print_attempts(mandate: &Contract) -> Result<()> {
-    let attempts: Vec<Value> = mandate.view("attempts").args_json(json!({"from": 0, "limit": 100})).await?.json()?;
+    let attempts: Vec<Value> = mandate
+        .view("attempts")
+        .args_json(json!({"from": 0, "limit": 100}))
+        .await?
+        .json()?;
     println!("\nattempts recorded by {}", mandate.id());
-    println!("{:>3}  {:<12} {:<9} {:>11}  {:<18} {}", "#", "request_id", "payee", "NEAR", "status", "reason");
+    println!(
+        "{:>3}  {:<12} {:<9} {:>11}  {:<18} {}",
+        "#", "request_id", "payee", "NEAR", "status", "reason"
+    );
     for a in attempts {
         let text = |key: &str| a[key].as_str().unwrap_or("").to_string();
         let amount: u128 = text("amount").parse()?;

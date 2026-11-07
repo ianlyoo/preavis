@@ -1,6 +1,6 @@
 [package]
 name = "preavis"
-version = "0.9.0"
+version = "1.0.0"
 edition = "2024"
 publish = false
 description = "An agent spending mandate on NEAR: you hold the agent's key, try to make it pay you."

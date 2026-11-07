@@ -1,6 +1,6 @@
 {
   "name": "preavis",
-  "version": "0.9.0",
+  "version": "1.0.0",
   "private": true,
   "description": "You hold our agent's key. Try to make it pay you.",
   "engines": {

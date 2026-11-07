@@ -2,7 +2,9 @@
 # Builds the contract from a commit inside a pinned linux/amd64 Rust image, so the bytes don't depend
 # on the host: Cargo's crate hashes include the host's target triple, so a native arm64 build differs
 # from an x86_64 one. Embeds NEP-330 build info (image, command, commit), readable on chain through
-# `contract_source_metadata`. Needs Docker (on arm64 hosts it emulates amd64, which is slower).
+# `contract_source_metadata`. Needs Docker. On an arm64 host (Apple Silicon) Docker emulates amd64
+# with QEMU, where parallel rustc jobs have crashed; there the build runs one job at a time
+# (CARGO_BUILD_JOBS=1). The job count doesn't change the bytes. Override with PREAVIS_BUILD_JOBS=<n>.
 # Usage: scripts/build-reproducible.sh [<commit>]   (default HEAD) → target/reproducible/preavis.wasm
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -12,10 +14,13 @@ if [ -z "${1:-}" ] && ! git diff --quiet HEAD -- src Cargo.toml Cargo.lock rust-
   echo "the contract's inputs have uncommitted changes; this builds committed source only" >&2
   exit 1
 fi
+case "$(uname -m)" in x86_64 | amd64) jobs="${PREAVIS_BUILD_JOBS:-}" ;; *) jobs="${PREAVIS_BUILD_JOBS:-1}" ;; esac
+jobs_env=()
+[ -n "$jobs" ] && jobs_env=(-e "CARGO_BUILD_JOBS=$jobs")
 out="$PWD/target/reproducible"
 rm -rf "$out" && mkdir -p "$out"
-echo "building commit $rev in $image" >&2
-git archive "$rev" | docker run --rm -i --platform linux/amd64 \
+echo "building commit $rev in $image${jobs:+ with CARGO_BUILD_JOBS=$jobs}" >&2
+git archive "$rev" | docker run --rm -i --platform linux/amd64 ${jobs_env[@]+"${jobs_env[@]}"} \
   -e NEP330_BUILD_INFO_BUILD_ENVIRONMENT="$image" \
   -e NEP330_BUILD_INFO_BUILD_COMMAND='["bash","scripts/build-wasm.sh"]' \
   -e NEP330_BUILD_INFO_CONTRACT_PATH="" \
