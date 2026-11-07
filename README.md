@@ -1,6 +1,6 @@
 # Préavis
 
-**One command gives you our agent's key in a local NEAR sandbox. Try to make it pay you.**
+**One command gives you our agent's key in a local NEAR sandbox. Check that it cannot pay anyone outside its mandate.**
 
 *You control the agent. You cannot exceed its authority.*
 
@@ -14,7 +14,7 @@ your machine, and that key signs every agent call in the run: in the sandbox, yo
 agent's signing. The key it prints is the public half; the secret half never leaves your machine.
 Every claim below is checked by a command you can run, and a false claim would fail that command.
 
-*Préavis* is French for "advance notice": we announce the heist and hand you the agent, in a local sandbox.
+*Préavis* is French for "advance notice": the mandate states in advance what the agent may pay, and the contract holds it to that.
 
 Status: **v1.0, NEAR testnet only.** The live mandate
 [`mandate.preavis-1794034063.testnet`](https://testnet.nearblocks.io/address/mandate.preavis-1794034063.testnet)
@@ -130,7 +130,7 @@ Denials return normally. They are not panics, so each one emits an event you can
 up to `max_denials` per period, leaves a stored record; past that limit a denial is only counted
 (`denials_not_stored` in `mandate()`).
 
-## 3. Attack it yourself
+## 3. Try your own inputs
 
 ```sh
 npm run attack-local
