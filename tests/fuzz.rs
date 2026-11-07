@@ -8,14 +8,23 @@
 //!   `expires_at` on);
 //! - I2 `committed` ≤ total cap, each payee's committed ≤ its cap, the agent's own commitments in
 //!   each period ≤ `approval_threshold`;
-//! - I3 `committed` and each payee's committed equal the sum of settled requests, and so do the
-//!   payees' balances; a failed transfer is released exactly once; `held` is the sum awaiting;
+//! - I3 after normal callback completion (every step's transaction finished, its `on_transfer`
+//!   included): `committed` and each payee's committed equal the sum of settled requests, and so
+//!   do the payees' balances; a failed transfer is released exactly once; `held` is the sum
+//!   awaiting. A failed callback leaves its request PENDING with the charge frozen, by design
+//!   (VERIFY claim 28); the general safety statement is committed = PENDING + SETTLED within caps;
 //! - I4 the mandate's balance falls only by settled payments and the close refund;
-//! - I5 a request denied EXHAUSTED in period N is accepted in a later period if it still fits.
+//! - I5 on an open, unexpired mandate, a request denied EXHAUSTED in period N, resent with a valid
+//!   request ID that is still free, is accepted in a later period if it still fits the caps.
+//!
+//! Steps within one mandate run one after another, each waiting for its final result; 64 mandates
+//! run in parallel, independent of each other. Requests in flight at once on one mandate are a
+//! separate fixed scenario (tests/verify.rs, claim 27), not part of these random sequences.
 //!
 //! `npm run verify` runs 64 sequences × 40 steps with seed 494; `npm run verify:fuzz` runs 2,048
-//! with a random seed. PREAVIS_FUZZ_SEED, PREAVIS_FUZZ_SEQUENCES and PREAVIS_FUZZ_STEPS override.
-//! A violation prints the seed and the shortest failing sequence found by removing steps.
+//! with a random seed. PREAVIS_FUZZ_SEED, PREAVIS_FUZZ_SEQUENCES, PREAVIS_FUZZ_STEPS and
+//! PREAVIS_FUZZ_FEATURE override. A violation prints the seed, a shorter failing sequence found by
+//! removing steps one at a time, and the command (with the feature, if any) that reproduces it.
 mod common;
 
 use anyhow::{Context, Result, anyhow, bail};
@@ -993,7 +1002,7 @@ async fn invariants() -> Result<()> {
             );
             let small = shrink(&worker, &root, &wasm, seed, sequence, steps, f).await;
             println!(
-                "\nminimal failing sequence ({} steps), policy {:?}:",
+                "\nreduced failing sequence ({} steps; steps removed one at a time, not guaranteed shortest), policy {:?}:",
                 small.log.len(),
                 policy_line(&plan(seed, sequence, steps))
             );
@@ -1001,8 +1010,12 @@ async fn invariants() -> Result<()> {
                 println!("{line}");
             }
             println!("  → {:#}", small.error);
+            // Everything the run depended on: the build (feature) as well as seed, sequences, steps.
+            let feature = std::env::var("PREAVIS_FUZZ_FEATURE")
+                .map(|f| format!("PREAVIS_FUZZ_FEATURE={f} "))
+                .unwrap_or_default();
             println!(
-                "reproduce: PREAVIS_FUZZ_SEED={seed} PREAVIS_FUZZ_SEQUENCES={} PREAVIS_FUZZ_STEPS={steps} npm run verify:fuzz",
+                "reproduce: {feature}PREAVIS_FUZZ_SEED={seed} PREAVIS_FUZZ_SEQUENCES={} PREAVIS_FUZZ_STEPS={steps} npm run verify:fuzz",
                 sequence + 1
             );
             bail!("invariant violated (seed {seed}, sequence {sequence})");
