@@ -1,0 +1,90 @@
+running 1 test
+owner preavis-1794025012.testnet (credentials saved under .credentials/testnet/preavis-1794025012.testnet/, not printed)
+HELD  1  [setup] mandate deployed and initialized with a fixed policy
+         observed: mandate.preavis-1794025012.testnet code sha256 3ce2d293ed41c1bf4ffb4c5cd93003665f1ed13ecc35157193f02185e1035431
+         https://testnet.nearblocks.io/txns/7uqt5EN7vRDyxhNaCoU1KWVHLr4WdqZFazujPkmv6AfV
+HELD  2  [contract] an owner method refuses the agent, even with a full-access key
+         observed: panic OWNER_ONLY, no state change
+         https://testnet.nearblocks.io/txns/6ijq41CM8XBD56m8HhM6FfrUK9PbMeYJJbGbzudyAmMg
+
+  this is now your agent: agent.preavis-1794025012.testnet
+  your key: ed25519:2vXnvDNyd7h2xV3azHqTuR5dSnuPHjcJsKfo3w5BoUUz (generated on this machine)
+  it can call mandate.preavis-1794025012.testnet.request_spend and nothing else.
+  the agent's full-access key is the owner's, offline; it only exists to fire the agent.
+
+HELD  3  [protocol] your key (the agent's working key) is a function-call key for request_spend on the mandate only
+         observed: agent keys: FunctionCall receiver=mandate methods=[request_spend] (yours) + the owner's offline full-access key
+         https://testnet.nearblocks.io/txns/vEc9smUz4MbbeJFkCgsS4Q4qz6BmruFLnUM5FNJkYDm
+HELD  4  [protocol] the agent's key cannot attach a deposit
+         observed: RPC error InvalidAccessKeyError(DepositWithFunctionCall), no record
+HELD  5  [protocol] the agent's key cannot call any other method (approve)
+         observed: RPC error InvalidAccessKeyError(MethodNameMismatch)
+HELD  6  [contract] only the agent can request a spend; not even the owner
+         observed: panic AGENT_ONLY, no record
+         https://testnet.nearblocks.io/txns/AvmNQNYYRyEXAzRDXeYXP6htck6hDGwwt2dmUKypsxEC
+HELD  7  [contract] paying an unlisted account (you) is refused
+         observed: DENIED UNLISTED, record #0 + event, budget unchanged
+         https://testnet.nearblocks.io/txns/DeQNzjPqY452eGD9suo4B9qbZX3yptTPvmZKCsT8LZq3
+HELD  8  [contract] a request under another policy version is refused
+         observed: DENIED POLICY_VERSION, record #1 + event, budget unchanged
+         https://testnet.nearblocks.io/txns/AtiCXb7REK8Sb3R3zsc2YC3kvAr1nL8mwiN73b2AVDcn
+HELD  9  [contract] a zero-amount request is refused
+         observed: DENIED ZERO_AMOUNT, record #2 + event, budget unchanged
+         https://testnet.nearblocks.io/txns/Ez3XDxsLXeRuGiJDpKD7auSVK2B6Cn7XxhGEQV9attU2
+test execute_testnet has been running for over 60 seconds
+HELD 10  [settlement] an in-policy purchase settles
+         observed: SETTLED after checking the transfer result; vendor balance +4 steps exactly
+         https://testnet.nearblocks.io/txns/54vp4DFG6BDk9v1KJxJDAMML3WeBih9VZn4pXfpBsq9G
+HELD 11  [contract] replaying a settled request is refused
+         observed: DENIED REPLAY, record #4 + event, budget unchanged
+         https://testnet.nearblocks.io/txns/D2mYkFixSprH5xTrnt2nA94aizjxMU4FEW8pXs8zanmC
+HELD 12  [contract] reusing a request ID with altered arguments is refused
+         observed: DENIED ALTERED, record #5 + event, budget unchanged
+         https://testnet.nearblocks.io/txns/GCnpKFWrgqcPRegy3UWVPomfEeWQy9VcfbSLRyQSuLb8
+HELD 13  [settlement] a failed transfer releases its charge exactly once
+         observed: transfer receipt AccountDoesNotExist; FAILED, releases=1, budget back to 4 steps
+         https://testnet.nearblocks.io/txns/DUytmYeJgYUurZeTPpoK74EBybj7WMXgNWRcCu9euDxP
+HELD 14  [contract] splitting a payment does not dodge owner approval: past 10 steps the agent waits
+         observed: split-a SETTLED, split-b AWAITING_APPROVAL (reserved, not paid)
+         https://testnet.nearblocks.io/txns/CREVcAe66FUtejFNrQsDe6StBkRkXx1ekg6K2YnYQhso
+HELD 15  [contract] an approval with an altered amount is refused
+         observed: panic BINDING_MISMATCH, request still held
+         https://testnet.nearblocks.io/txns/3cRTQQEfgRHbGKrJyFstNsjBMVr37LANKpcX21KFjBYU
+HELD 16  [settlement] the owner's exact approval pays the held request once
+         observed: SETTLED; vendor balance +12 steps in total
+         https://testnet.nearblocks.io/txns/A9AikS4S2RPgMRNUESLeeGLnvWhdAHbrEEx3xCNjsJSi
+HELD 17  [contract] exceeding a payee's cap is refused
+         observed: DENIED PAYEE_CAP, record #9 + event, budget unchanged
+         https://testnet.nearblocks.io/txns/GeDHAYorLpuowasMTnovppLjf6gXaqQa9Jktax528Y5k
+HELD 18  [contract] exceeding the total cap is refused, held requests included
+         observed: DENIED TOTAL_CAP, record #11 + event, budget unchanged
+         https://testnet.nearblocks.io/txns/GzkW6jpJeh6Mw54Z5MJhAE5AdQayQRB32kGUiABMmC14
+HELD 19  [contract] a rejected request releases its reservation once
+         observed: REJECTED, releases=1; a second reject panics NOT_AWAITING_APPROVAL
+         https://testnet.nearblocks.io/txns/8XCaRMpHWPa3nTbyoGTfeMnQdqs9Wu6qWkNPFKycjoM
+HELD 20  [contract] nobody else can call the settlement callback
+         observed: panic: Method on_transfer is private
+         https://testnet.nearblocks.io/txns/6vhPXzyyxiMT2KBK1AhqQ8f7T2rngtQxGbGvtWdHhJ2P
+HELD 21  [state] end state: you received nothing; only settled requests moved money
+         observed: attacker +0, hosting +0, vendor +12 steps = 3 settled requests; committed 12 of 40
+
+attempts recorded by mandate.preavis-1794025012.testnet
+  #  request_id   payee            NEAR  status             reason
+  0  pay-me       attacker       0.0001  DENIED             UNLISTED
+  1  old-policy   vendor         0.0001  DENIED             POLICY_VERSION
+  2  zero         vendor         0.0000  DENIED             ZERO_AMOUNT
+  3  buy-1        vendor         0.0004  SETTLED            
+  4  buy-1        vendor         0.0004  DENIED             REPLAY
+  5  buy-1        vendor         0.0009  DENIED             ALTERED
+  6  ghost-1      ghost          0.0002  FAILED             
+  7  split-a      vendor         0.0004  SETTLED            
+  8  split-b      vendor         0.0004  SETTLED            
+  9  big-vendor   vendor         0.0020  DENIED             PAYEE_CAP
+ 10  hosting-1    hosting        0.0025  REJECTED           
+ 11  vendor-5     vendor         0.0005  DENIED             TOTAL_CAP
+
+Preavis testnet: 21 claims held, 0 broken. Run record: target/preavis-testnet-run.json
+test execute_testnet ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 106.89s
+

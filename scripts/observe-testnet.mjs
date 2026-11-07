@@ -65,11 +65,14 @@ check(account.code_hash === localHash, "deployed code hash equals sha256 of res/
   `chain ${account.code_hash}, local ${localHash} (hex ${createHash("sha256").update(wasm).digest("hex")})`);
 
 const agentKeys = (await query({ request_type: "view_access_key_list", account_id: record.agent })).keys;
-const fc = agentKeys[0]?.access_key.permission.FunctionCall;
-check(agentKeys.length === 1 && fc?.receiver_id === record.mandate && fc.method_names.join() === "request_spend"
-  && agentKeys[0].public_key === record.agent_public_key,
-  "the agent has exactly one key: function-call, request_spend on the mandate",
-  `${agentKeys.length} key(s): ${agentKeys.map((k) => `${k.public_key} ${JSON.stringify(k.access_key.permission)}`).join("; ")}`);
+const working = agentKeys.filter((k) => k.access_key.permission.FunctionCall);
+const fc = working[0]?.access_key.permission.FunctionCall;
+const fullAccess = agentKeys.filter((k) => k.access_key.permission === "FullAccess").map((k) => k.public_key);
+check(working.length === 1 && working[0].public_key === record.agent_public_key
+  && fc.receiver_id === record.mandate && fc.method_names.join() === "request_spend"
+  && fullAccess.join() === record.agent_offline_public_key,
+  "the agent's working key is function-call only (request_spend on the mandate); its only other key is the owner's offline full-access key",
+  agentKeys.map((k) => `${k.public_key} ${JSON.stringify(k.access_key.permission)}`).join("\n      "));
 
 const mandateKeys = (await query({ request_type: "view_access_key_list", account_id: record.mandate })).keys;
 console.log(`INFO  mandate access keys: ${mandateKeys.length}${mandateKeys.length

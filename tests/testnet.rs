@@ -34,6 +34,9 @@ async fn execute_testnet() -> Result<()> {
     let mut w = setup(worker, owner, NEAR / 10_000, NearToken::from_near(5), &wasm, true).await?;
     w.mandate.as_account().store_credentials(&keys).await?;
     main_flow(&mut w).await?;
+    let offline = w.agent_offline_key.clone().context("agent not handed over")?;
+    let agent_admin = near_workspaces::Account::from_secret_key(w.agent.id().clone(), offline.clone(), &w.worker);
+    agent_admin.store_credentials(&keys).await?;
     print_attempts(&w.mandate).await?;
 
     let record = json!({
@@ -44,6 +47,7 @@ async fn execute_testnet() -> Result<()> {
         "mandate": w.mandate.id(),
         "agent": w.agent.id(),
         "agent_public_key": w.agent.secret_key().public_key().to_string(),
+        "agent_offline_public_key": offline.public_key().to_string(),
         "code_sha256": sha256_hex(&wasm),
         "step_yocto": w.step.to_string(),
         "claims": w.ev.rows,

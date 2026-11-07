@@ -66,6 +66,8 @@ pub struct World<N: Network + 'static> {
     pub ghost: AccountId,
     /// Every amount is a multiple of this; 0.1 NEAR in the sandbox, 0.0001 NEAR on testnet.
     pub step: u128,
+    /// The agent's full-access key, held by the owner after the hand-over.
+    pub agent_offline_key: Option<SecretKey>,
     pub ev: Evidence,
 }
 
@@ -139,7 +141,7 @@ pub async fn setup<N: Network + 'static>(
         &format!("{} code sha256 {}", mandate.id(), sha256_hex(wasm)),
         Some(&init),
     );
-    Ok(World { worker, owner, agent, mandate, vendor, hosting, attacker, ghost, step, ev })
+    Ok(World { worker, owner, agent, mandate, vendor, hosting, attacker, ghost, step, agent_offline_key: None, ev })
 }
 
 impl<N: Network + 'static> World<N> {
@@ -225,8 +227,10 @@ impl<N: Network + 'static> World<N> {
         Ok(())
     }
 
-    /// Generates the agent's only working key locally and deletes its full-access key.
-    pub async fn hand_over_agent(&mut self) -> Result<SecretKey> {
+    /// Generates the agent's working key locally: a function-call key for `request_spend` only.
+    /// The agent's full-access key leaves the agent and stays with the owner, offline; its one use
+    /// is firing the agent by deleting the working key.
+    pub async fn hand_over_agent(&mut self) -> Result<()> {
         let key = SecretKey::from_random(KeyType::ED25519);
         let changed = self
             .agent
@@ -239,32 +243,63 @@ impl<N: Network + 'static> World<N> {
                     Some(NearToken::from_millinear(250)),
                 ),
             )
-            .delete_key(self.agent.secret_key().public_key())
             .transact()
             .await?;
         ensure!(changed.is_success(), "key change failed: {changed:?}");
+        let offline = self.agent.secret_key().clone();
         self.agent.set_secret_key(key.clone());
         let keys = self.agent.view_access_keys().await?;
-        ensure!(keys.len() == 1, "agent has {} keys", keys.len());
-        match &keys[0].access_key.permission {
-            AccessKeyPermission::FunctionCall(p) => ensure!(
-                p.receiver_id == self.mandate.id().as_str() && p.method_names == ["request_spend"],
-                "unexpected permission {p:?}"
-            ),
-            AccessKeyPermission::FullAccess => anyhow::bail!("agent still has a full-access key"),
+        ensure!(keys.len() == 2, "agent has {} keys", keys.len());
+        for k in &keys {
+            match &k.access_key.permission {
+                AccessKeyPermission::FunctionCall(p) => ensure!(
+                    k.public_key == key.public_key()
+                        && p.receiver_id == self.mandate.id().as_str()
+                        && p.method_names == ["request_spend"],
+                    "unexpected function-call key {p:?}"
+                ),
+                AccessKeyPermission::FullAccess => {
+                    ensure!(k.public_key == offline.public_key(), "unknown full-access key")
+                }
+            }
         }
         println!();
         println!("  this is now your agent: {}", self.agent.id());
-        println!("  its only key: {} (generated on this machine)", key.public_key());
-        println!("  it may call {}.request_spend and nothing else; it has no full-access key", self.mandate.id());
+        println!("  your key: {} (generated on this machine)", key.public_key());
+        println!("  it can call {}.request_spend and nothing else.", self.mandate.id());
+        println!("  the agent's full-access key is the owner's, offline; it only exists to fire the agent.");
         println!();
         self.ev.held(
-            "the agent's only key is a function-call key for request_spend on the mandate",
+            "your key (the agent's working key) is a function-call key for request_spend on the mandate only",
             "protocol",
-            "1 key: FunctionCall receiver=mandate methods=[request_spend], full-access key deleted",
+            "agent keys: FunctionCall receiver=mandate methods=[request_spend] (yours) + the owner's offline full-access key",
             Some(&changed),
         );
-        Ok(key)
+        self.agent_offline_key = Some(offline);
+        Ok(())
+    }
+
+    /// The owner deletes the agent's working key with the offline full-access key.
+    pub async fn fire_agent(&mut self) -> Result<()> {
+        let offline = self.agent_offline_key.clone().context("agent not handed over")?;
+        let owner_side = Account::from_secret_key(self.agent.id().clone(), offline, &self.worker);
+        let fired = owner_side
+            .batch(self.agent.id())
+            .delete_key(self.agent.secret_key().public_key())
+            .transact()
+            .await?;
+        ensure!(fired.is_success(), "{fired:?}");
+        let after = self.spend("after-firing", &self.vendor.id().clone(), 1).await;
+        let error = format!("{:?}", after.err().context("a fired agent's key still works")?);
+        ensure!(error.contains("InvalidAccessKeyError"), "{error}");
+        ensure!(self.request("after-firing").await?.is_null());
+        self.ev.held(
+            "firing the agent takes one key deletion; its next request is refused",
+            "protocol",
+            &format!("owner deleted the working key; next request: RPC error {}", if error.contains("AccessKeyNotFound") { "InvalidAccessKeyError(AccessKeyNotFound)" } else { "InvalidAccessKeyError" }),
+            Some(&fired),
+        );
+        Ok(())
     }
 }
 

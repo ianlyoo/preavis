@@ -1,36 +1,37 @@
 {
   "network": "testnet",
   "rpc": "https://test.rpc.fastnear.com",
-  "recorded_at_unix": 1794024816,
-  "owner": "preavis-1794024709.testnet",
-  "mandate": "mandate.preavis-1794024709.testnet",
-  "agent": "agent.preavis-1794024709.testnet",
-  "agent_public_key": "ed25519:436TLZh7BWkWp1SYWZfZBAAPvMELLsJhMtmcqejXUpTj",
+  "recorded_at_unix": 1794025119,
+  "owner": "preavis-1794025012.testnet",
+  "mandate": "mandate.preavis-1794025012.testnet",
+  "agent": "agent.preavis-1794025012.testnet",
+  "agent_public_key": "ed25519:2vXnvDNyd7h2xV3azHqTuR5dSnuPHjcJsKfo3w5BoUUz",
+  "agent_offline_public_key": "ed25519:F8vgavfy7iRiRUPoDdTRunuWQmN2ie9nG7hBK351m1qD",
   "code_sha256": "3ce2d293ed41c1bf4ffb4c5cd93003665f1ed13ecc35157193f02185e1035431",
   "step_yocto": "100000000000000000000",
   "claims": [
     {
       "claim": "mandate deployed and initialized with a fixed policy",
       "layer": "setup",
-      "observed": "mandate.preavis-1794024709.testnet code sha256 3ce2d293ed41c1bf4ffb4c5cd93003665f1ed13ecc35157193f02185e1035431",
-      "tx": "7takjQZXJggxmrBsx714mF45sCqyWbWw2a5dJ9e11dA3",
-      "signer": "mandate.preavis-1794024709.testnet",
+      "observed": "mandate.preavis-1794025012.testnet code sha256 3ce2d293ed41c1bf4ffb4c5cd93003665f1ed13ecc35157193f02185e1035431",
+      "tx": "7uqt5EN7vRDyxhNaCoU1KWVHLr4WdqZFazujPkmv6AfV",
+      "signer": "mandate.preavis-1794025012.testnet",
       "tx_status": "success"
     },
     {
       "claim": "an owner method refuses the agent, even with a full-access key",
       "layer": "contract",
       "observed": "panic OWNER_ONLY, no state change",
-      "tx": "F1j4KbKZvUzspbpaZtNz7B6b9UuPCDyRF3sVAd45gudT",
-      "signer": "agent.preavis-1794024709.testnet",
+      "tx": "6ijq41CM8XBD56m8HhM6FfrUK9PbMeYJJbGbzudyAmMg",
+      "signer": "agent.preavis-1794025012.testnet",
       "tx_status": "failure"
     },
     {
-      "claim": "the agent's only key is a function-call key for request_spend on the mandate",
+      "claim": "your key (the agent's working key) is a function-call key for request_spend on the mandate only",
       "layer": "protocol",
-      "observed": "1 key: FunctionCall receiver=mandate methods=[request_spend], full-access key deleted",
-      "tx": "7mDDQj8Xn96L5sogHXnxunSHmppddaD8McoNVSs3ZUpT",
-      "signer": "agent.preavis-1794024709.testnet",
+      "observed": "agent keys: FunctionCall receiver=mandate methods=[request_spend] (yours) + the owner's offline full-access key",
+      "tx": "vEc9smUz4MbbeJFkCgsS4Q4qz6BmruFLnUM5FNJkYDm",
+      "signer": "agent.preavis-1794025012.testnet",
       "tx_status": "success"
     },
     {
@@ -53,120 +54,120 @@
       "claim": "only the agent can request a spend; not even the owner",
       "layer": "contract",
       "observed": "panic AGENT_ONLY, no record",
-      "tx": "AJDosgmvHxJAWzhTgrfuQXwwyW7GNZuChs1bmJQwEWf1",
-      "signer": "preavis-1794024709.testnet",
+      "tx": "AvmNQNYYRyEXAzRDXeYXP6htck6hDGwwt2dmUKypsxEC",
+      "signer": "preavis-1794025012.testnet",
       "tx_status": "failure"
     },
     {
       "claim": "paying an unlisted account (you) is refused",
       "layer": "contract",
       "observed": "DENIED UNLISTED, record #0 + event, budget unchanged",
-      "tx": "8Nk6wufXbxwhMNZWYbSMQw5rCXLRsMm8ok8miW1Xj64V",
-      "signer": "agent.preavis-1794024709.testnet",
+      "tx": "DeQNzjPqY452eGD9suo4B9qbZX3yptTPvmZKCsT8LZq3",
+      "signer": "agent.preavis-1794025012.testnet",
       "tx_status": "success"
     },
     {
       "claim": "a request under another policy version is refused",
       "layer": "contract",
       "observed": "DENIED POLICY_VERSION, record #1 + event, budget unchanged",
-      "tx": "7P9U9Hz9jonyg9E8Tiftv3HjEFigrtdB8b1edrKhH6Ny",
-      "signer": "agent.preavis-1794024709.testnet",
+      "tx": "AtiCXb7REK8Sb3R3zsc2YC3kvAr1nL8mwiN73b2AVDcn",
+      "signer": "agent.preavis-1794025012.testnet",
       "tx_status": "success"
     },
     {
       "claim": "a zero-amount request is refused",
       "layer": "contract",
       "observed": "DENIED ZERO_AMOUNT, record #2 + event, budget unchanged",
-      "tx": "2eb87RTz1puH1eDuwe6GDdPTNmS87BCf7BnczAhjWL3C",
-      "signer": "agent.preavis-1794024709.testnet",
+      "tx": "Ez3XDxsLXeRuGiJDpKD7auSVK2B6Cn7XxhGEQV9attU2",
+      "signer": "agent.preavis-1794025012.testnet",
       "tx_status": "success"
     },
     {
       "claim": "an in-policy purchase settles",
       "layer": "settlement",
       "observed": "SETTLED after checking the transfer result; vendor balance +4 steps exactly",
-      "tx": "6hyscWG2AKadXQ3PWGP9c778fnZhJ1eqVK9CZhJM2iZV",
-      "signer": "agent.preavis-1794024709.testnet",
+      "tx": "54vp4DFG6BDk9v1KJxJDAMML3WeBih9VZn4pXfpBsq9G",
+      "signer": "agent.preavis-1794025012.testnet",
       "tx_status": "success"
     },
     {
       "claim": "replaying a settled request is refused",
       "layer": "contract",
       "observed": "DENIED REPLAY, record #4 + event, budget unchanged",
-      "tx": "qRucPybMF1mx6ASGzzVjuF23KRiBBX8AQgAwKW4Ns5e",
-      "signer": "agent.preavis-1794024709.testnet",
+      "tx": "D2mYkFixSprH5xTrnt2nA94aizjxMU4FEW8pXs8zanmC",
+      "signer": "agent.preavis-1794025012.testnet",
       "tx_status": "success"
     },
     {
       "claim": "reusing a request ID with altered arguments is refused",
       "layer": "contract",
       "observed": "DENIED ALTERED, record #5 + event, budget unchanged",
-      "tx": "GwNJfSzk9hZkZR3ZABEqVtbptejidRpkFWL493UzX8hq",
-      "signer": "agent.preavis-1794024709.testnet",
+      "tx": "GCnpKFWrgqcPRegy3UWVPomfEeWQy9VcfbSLRyQSuLb8",
+      "signer": "agent.preavis-1794025012.testnet",
       "tx_status": "success"
     },
     {
       "claim": "a failed transfer releases its charge exactly once",
       "layer": "settlement",
       "observed": "transfer receipt AccountDoesNotExist; FAILED, releases=1, budget back to 4 steps",
-      "tx": "8nfsHyTQskadSW6AZ7wtehahSXFmVgwXEEW8u2qFxSjJ",
-      "signer": "agent.preavis-1794024709.testnet",
+      "tx": "DUytmYeJgYUurZeTPpoK74EBybj7WMXgNWRcCu9euDxP",
+      "signer": "agent.preavis-1794025012.testnet",
       "tx_status": "success"
     },
     {
       "claim": "splitting a payment does not dodge owner approval: past 10 steps the agent waits",
       "layer": "contract",
       "observed": "split-a SETTLED, split-b AWAITING_APPROVAL (reserved, not paid)",
-      "tx": "Et4VV7YPG4Apd5PwNGTcm3FCK1zqaxE3PzRDfWrJ4Qh6",
-      "signer": "agent.preavis-1794024709.testnet",
+      "tx": "CREVcAe66FUtejFNrQsDe6StBkRkXx1ekg6K2YnYQhso",
+      "signer": "agent.preavis-1794025012.testnet",
       "tx_status": "success"
     },
     {
       "claim": "an approval with an altered amount is refused",
       "layer": "contract",
       "observed": "panic BINDING_MISMATCH, request still held",
-      "tx": "9LVfvkQU6suVWBCoMQLEpWhWSSyZC2kDiupF3q4SKurQ",
-      "signer": "preavis-1794024709.testnet",
+      "tx": "3cRTQQEfgRHbGKrJyFstNsjBMVr37LANKpcX21KFjBYU",
+      "signer": "preavis-1794025012.testnet",
       "tx_status": "failure"
     },
     {
       "claim": "the owner's exact approval pays the held request once",
       "layer": "settlement",
       "observed": "SETTLED; vendor balance +12 steps in total",
-      "tx": "5SKgfYKSRBWf1K8wy1z7w2oZT3ekSDeQzCgXmuRVbJKd",
-      "signer": "preavis-1794024709.testnet",
+      "tx": "A9AikS4S2RPgMRNUESLeeGLnvWhdAHbrEEx3xCNjsJSi",
+      "signer": "preavis-1794025012.testnet",
       "tx_status": "success"
     },
     {
       "claim": "exceeding a payee's cap is refused",
       "layer": "contract",
       "observed": "DENIED PAYEE_CAP, record #9 + event, budget unchanged",
-      "tx": "3B74xA7em3scfjWRd5tsbEmHKHCp17hFZuuHH5hEP1Fd",
-      "signer": "agent.preavis-1794024709.testnet",
+      "tx": "GeDHAYorLpuowasMTnovppLjf6gXaqQa9Jktax528Y5k",
+      "signer": "agent.preavis-1794025012.testnet",
       "tx_status": "success"
     },
     {
       "claim": "exceeding the total cap is refused, held requests included",
       "layer": "contract",
       "observed": "DENIED TOTAL_CAP, record #11 + event, budget unchanged",
-      "tx": "GHNVcL5FGhXHCT43AC61D6d8WmLsfLQD3mUWMnn1aWxj",
-      "signer": "agent.preavis-1794024709.testnet",
+      "tx": "GzkW6jpJeh6Mw54Z5MJhAE5AdQayQRB32kGUiABMmC14",
+      "signer": "agent.preavis-1794025012.testnet",
       "tx_status": "success"
     },
     {
       "claim": "a rejected request releases its reservation once",
       "layer": "contract",
       "observed": "REJECTED, releases=1; a second reject panics NOT_AWAITING_APPROVAL",
-      "tx": "2yS1oyBy9keJLCKUdxZt84W7cGZgGGWocETDB9nEx8TM",
-      "signer": "preavis-1794024709.testnet",
+      "tx": "8XCaRMpHWPa3nTbyoGTfeMnQdqs9Wu6qWkNPFKycjoM",
+      "signer": "preavis-1794025012.testnet",
       "tx_status": "success"
     },
     {
       "claim": "nobody else can call the settlement callback",
       "layer": "contract",
       "observed": "panic: Method on_transfer is private",
-      "tx": "32nGykxAHvvCuKqq9n1agxYhK7uBddf9huv2DtgTzFqM",
-      "signer": "preavis-1794024709.testnet",
+      "tx": "6vhPXzyyxiMT2KBK1AhqQ8f7T2rngtQxGbGvtWdHhJ2P",
+      "signer": "preavis-1794025012.testnet",
       "tx_status": "failure"
     },
     {

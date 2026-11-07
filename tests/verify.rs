@@ -16,6 +16,7 @@ async fn verify() -> Result<()> {
     callback_replay(&mut w).await?;
     overlapping_requests(&mut w, &wasm).await?;
     callback_failure(&mut w).await?;
+    w.fire_agent().await?;
 
     print_attempts(&w.mandate).await?;
     println!("\nPreavis verify: {} claims held, 0 broken.", w.ev.rows.len());
