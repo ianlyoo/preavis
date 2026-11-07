@@ -357,41 +357,85 @@ pub fn inbox() -> Result<Vec<String>> {
     Ok(files)
 }
 
-/// Sends one call to the mandate and returns the outcome and the transfers it made, measured from
-/// the receipts.
+/// One transfer out of the mandate, from the transaction's receipts: payee, amount, and whether the
+/// receipt carrying it succeeded. A failed one was attempted and moved nothing.
+#[derive(Clone, Debug)]
+pub struct Transfer {
+    pub to: String,
+    pub amount: u128,
+    pub succeeded: bool,
+}
+
+/// Sends one call to the mandate and returns the outcome and the transfers it attempted, measured
+/// from the receipts with each receipt's execution status.
 pub async fn send(
     worker: &Worker<Sandbox>,
     signer: &Account,
     mandate: &AccountId,
     method: &str,
     args: Value,
-) -> Result<(ExecutionFinalResult, String, Vec<(String, u128)>)> {
+) -> Result<(ExecutionFinalResult, String, Vec<Transfer>)> {
     let result = signer
         .call(mandate, method)
         .args_json(args)
         .gas(Gas::from_tgas(100))
         .transact()
         .await?;
-    let mut paid = vec![];
+    let mut sent = vec![];
     for t in transfers(worker, &result).await? {
         if t["from"] == mandate.as_str() {
-            paid.push((
-                t["to"].as_str().context("to")?.to_string(),
-                t["amount"].as_str().context("amount")?.parse()?,
-            ));
+            sent.push(Transfer {
+                to: t["to"].as_str().context("to")?.to_string(),
+                amount: t["amount"].as_str().context("amount")?.parse()?,
+                succeeded: t["succeeded"].as_bool().context("succeeded")?,
+            });
         }
     }
-    Ok((result.clone(), outcome(&result), paid))
+    Ok((result.clone(), outcome(&result), sent))
 }
 
-pub fn paid_text(paid: &[(String, u128)]) -> String {
-    if paid.is_empty() {
-        "nothing".into()
+/// Only the transfers that succeeded: what was paid.
+pub fn paid(sent: &[Transfer]) -> Vec<&Transfer> {
+    sent.iter().filter(|t| t.succeeded).collect()
+}
+
+fn list(sent: &[&Transfer]) -> String {
+    sent.iter()
+        .map(|t| format!("{} NEAR -> {}", near(t.amount), t.to))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// What was paid, for the summary table: "nothing", or the settled transfers; failed ones are
+/// added as attempted, never as paid.
+pub fn paid_text(sent: &[Transfer]) -> String {
+    let (ok, failed): (Vec<&Transfer>, Vec<&Transfer>) = sent.iter().partition(|t| t.succeeded);
+    let paid = if ok.is_empty() { "nothing".into() } else { list(&ok) };
+    if failed.is_empty() {
+        paid
     } else {
-        paid.iter()
-            .map(|(to, v)| format!("{} NEAR -> {to}", near(*v)))
-            .collect::<Vec<_>>()
-            .join(", ")
+        format!("{paid} ({} attempted, failed)", list(&failed))
+    }
+}
+
+/// The measured transfers after "contract <outcome>; ": settled, attempted-and-failed, or none.
+pub fn transfer_text(sent: &[Transfer]) -> String {
+    let (ok, failed): (Vec<&Transfer>, Vec<&Transfer>) = sent.iter().partition(|t| t.succeeded);
+    let mut parts = vec![];
+    if !ok.is_empty() || failed.is_empty() {
+        parts.push(format!(
+            "transferred {}",
+            if ok.is_empty() { "nothing".into() } else { list(&ok) }
+        ));
+    }
+    if !failed.is_empty() {
+        parts.push(format!("transfer of {} attempted, failed", list(&failed)));
+    }
+    let text = parts.join("; ");
+    if ok.is_empty() && !failed.is_empty() {
+        format!("{text}: nothing paid")
+    } else {
+        text
     }
 }
 
@@ -485,7 +529,7 @@ pub async fn run_agent(dir: &Path) -> Result<()> {
             "  model    {}",
             reply.split_whitespace().collect::<Vec<_>>().join(" ")
         );
-        let (proposed, outcome, paid) = match decision(&reply) {
+        let (proposed, outcome, sent) = match decision(&reply) {
             Err(e) => (
                 format!("nothing (reply unusable: {e})"),
                 "NOTHING SENT".to_string(),
@@ -498,21 +542,21 @@ pub async fn run_agent(dir: &Path) -> Result<()> {
                     near(amount)
                 );
                 let args = json!({"request_id": id, "payee": payee, "amount": amount.to_string(), "policy_version": 1, "invoice": hash});
-                let (_, outcome, paid) =
+                let (_, outcome, sent) =
                     send(&worker, &agent, &mandate, "request_spend", args).await?;
                 (
                     format!("pay {} NEAR -> {payee}", near(amount)),
                     outcome,
-                    paid,
+                    sent,
                 )
             }
         };
-        println!("  contract {outcome}; transferred {}", paid_text(&paid));
+        println!("  contract {outcome}; {}", transfer_text(&sent));
         if outcome == "AWAITING_APPROVAL" {
             println!("  held for the owner: npm run owner -- show {id}");
         }
         println!();
-        let entry = json!({"request_id": id, "proposed": proposed, "outcome": outcome, "paid": paid_text(&paid)});
+        let entry = json!({"request_id": id, "proposed": proposed, "outcome": outcome, "paid": paid_text(&sent)});
         office.state["handled"][path] = entry.clone();
         office.save()?;
         turns.push(json!({"invoice": path, "prompt": prompt, "reply": reply, "outcome": outcome}));
@@ -667,12 +711,12 @@ pub async fn run_owner(dir: &Path, args: &[String]) -> Result<()> {
                 "request_id": id, "payee": record["payee"], "amount": record["amount"],
                 "policy_version": record["policy_version"], "invoice": record["invoice"],
             });
-            let (_, outcome, paid) = send(&worker, &owner, &mandate, "approve", args).await?;
-            println!("  contract {outcome}; transferred {}", paid_text(&paid));
+            let (_, outcome, sent) = send(&worker, &owner, &mandate, "approve", args).await?;
+            println!("  contract {outcome}; {}", transfer_text(&sent));
         }
         "reject" => {
             println!("SIGNING reject {id}…");
-            let (_, outcome, paid) = send(
+            let (_, outcome, sent) = send(
                 &worker,
                 &owner,
                 &mandate,
@@ -680,7 +724,7 @@ pub async fn run_owner(dir: &Path, args: &[String]) -> Result<()> {
                 json!({"request_id": id}),
             )
             .await?;
-            println!("  contract {outcome}; transferred {}", paid_text(&paid));
+            println!("  contract {outcome}; {}", transfer_text(&sent));
         }
         _ => unreachable!(),
     }

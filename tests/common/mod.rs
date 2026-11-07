@@ -95,14 +95,25 @@ pub fn events(result: &ExecutionFinalResult) -> Vec<Value> {
         .collect()
 }
 
-/// Every NEAR transfer the transaction's receipts carried, as `{from, to, amount}`, read back from
-/// the node receipt by receipt. Gas refunds (sent by `system`) are left out.
+/// Every NEAR transfer the transaction's receipts carried, as `{from, to, amount, succeeded}`, read
+/// back from the node receipt by receipt. Gas refunds (sent by `system`) are left out.
+///
+/// These are transfer *actions*, attempted ones included: `succeeded` is the execution status of
+/// the receipt that carried the action (false if the receipt failed, e.g. `AccountDoesNotExist`, or
+/// if its outcome is missing). A failed transfer moved no money; callers that report payments must
+/// count only `succeeded` ones. The invariant oracle (tests/fuzz.rs) checks every attempted one.
 pub async fn transfers<N: Network + 'static>(
     worker: &Worker<N>,
     result: &ExecutionFinalResult,
 ) -> Result<Vec<Value>> {
+    let status: std::collections::HashMap<String, bool> = result
+        .outcomes()
+        .iter()
+        .map(|o| (o.transaction_hash.to_string(), o.is_success()))
+        .collect();
     let mut out = vec![];
     for id in result.outcomes().iter().flat_map(|o| o.receipt_ids.clone()) {
+        let succeeded = status.get(&id.to_string()).copied().unwrap_or(false);
         let receipt_id = id.to_string().parse().map_err(|e| anyhow::anyhow!("{e}"))?;
         let receipt = worker
             .receipt(near_jsonrpc_primitives::types::receipts::ReceiptReference { receipt_id })
@@ -117,7 +128,7 @@ pub async fn transfers<N: Network + 'static>(
             .flatten()
         {
             if let Some(amount) = action["Transfer"].get("deposit") {
-                out.push(json!({"from": receipt["predecessor_id"], "to": receipt["receiver_id"], "amount": amount}));
+                out.push(json!({"from": receipt["predecessor_id"], "to": receipt["receiver_id"], "amount": amount, "succeeded": succeeded}));
             }
         }
     }
