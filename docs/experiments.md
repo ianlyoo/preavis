@@ -74,7 +74,7 @@ every invoice (`agent/hijacked-model.mjs`) sends the attacker's payment; the con
 - **Gas allowance of a function-call key.** One denied `request_spend` with 300 Tgas attached:
   0.300920 NEAR charged against the allowance while in flight, 0.000221 NEAR after the refund. Our
   first calibration read the allowance right after the call and recorded the in-flight figure,
-  1,000 times too high; the deploy now waits for the refund. 8 NEAR is about 36,000 calls.
+  1,000 times too high; the deploy now waits for the refund. 8 NEAR is about 36,000 such calls with small arguments; an independent review later estimated about 230 with very large arguments ([challenge.md](challenge.md)).
 - **Testnet block time.** 616 ms per block on average over the first hours of the challenge mandate,
   against the 600 ms we assumed. A "day" of 144,000 blocks is 24.6 h, and the expiry lands about
   40 minutes after the target. The observer converts heights to times with the measured rate.

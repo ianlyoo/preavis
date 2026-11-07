@@ -101,12 +101,22 @@ Two independent outside reviews of v0.8 found real gaps. The fixes, in order:
   half.
 - **arm64.** `CARGO_BUILD_JOBS` goes into the build container (1 under emulation); the byte
   comparison stays the same.
-- **A standing challenge, prepared but not published.** `c1.preavis-challenge-1794034196.testnet`,
+- **A challenge mandate, prepared but not published.** `c1.preavis-challenge-1794034196.testnet`,
   locked, with per-day windows, a gas allowance sized for the judging window, a timed rotation
   (deploy 26 s, retire 5 s) and an observer counter "attempts so far / paid to attackers". The key
-  stays in the ignored `.credentials/` until the owner decides ([challenge.md](challenge.md)).
+  stayed in the ignored `.credentials/` ([challenge.md](challenge.md)).
 - **15:49, the lock.** The v1.0 testnet run (24 claims) ended by deleting the mandate's last key
   (`2zs58UkW3s1DqVde7zm9wMWAs5RT8MJ9sB9AQkxcd5oF`).
+
+## 2026-11-07, v1.0.1: the challenge retired
+
+- **An independent review of the challenge design** found that one holder of a shared key can take
+  every window's request slots at no budget cost, and that no code change to a locked mandate with
+  one shared key prevents it. It found no way to be paid outside the allowlist.
+- **17:07, retired.** The key was not published. `npm run challenge-retire` deleted it and closed
+  the mandate (6.304011 NEAR back to `refund_to`). `observe-testnet` now checks the retired state.
+  Links: [challenge.md](challenge.md).
+- **The wording.** The hook now says where you get the agent's key: in a local NEAR sandbox.
 
 ## Not done yet
 

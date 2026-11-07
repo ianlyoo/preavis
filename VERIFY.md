@@ -15,7 +15,7 @@ Layers: **protocol** = refused by NEAR itself (access-key rules), before any con
 |---|---|---|
 | `npm run verify` | Rust (rustup), Node, network for the first download. No Docker. Linux, macOS or WSL, x86_64 or arm64 (where it was run: [README §1](README.md#1-verify-everything-in-one-command)) | the 35 claims below, run against the committed `res/preavis.wasm` (the bytes deployed on testnet); that the wasm exports no admin method; that it names the source commit it was built from and the contract's inputs have not changed since; plus `attack-local` and the recorded agent run |
 | `npm run verify:reproducible` | Docker (pulls the pinned `linux/amd64` Rust image; an arm64 host needs amd64 emulation) | byte identity: rebuilding that commit gives exactly `res/preavis.wasm`, its recorded sha256, and the code hash deployed on testnet |
-| `npm run observe-testnet` | Node only, no key | the recorded testnet run: every transaction, event, failure and transfer, the end state, that the mandate is locked, and that the deployed code imports only allowlisted host functions; the standing challenge mandate: locked, its key, today's window, and `attempts so far / paid to attackers` |
+| `npm run observe-testnet` | Node only, no key | the recorded testnet run: every transaction, event, failure and transfer, the end state, that the mandate is locked, and that the deployed code imports only allowlisted host functions; the challenge mandate (never published, retired): locked, key deleted, closed with its remainder sent only to `refund_to`, and `paid to attackers: 0` |
 | `npm run agent`, `npm run owner` | Rust, Node | the agent and the owner as separate programs over a local node that survives restarts (section F) |
 
 ## A. `npm run verify` (local sandbox, no account or key needed)
@@ -124,11 +124,11 @@ transfers to your account. An attack that breaks an invariant makes this command
 | The end state matches: `mandate()`, all 13 attempts, `committed` and `payee_committed` equal the settled and in-flight attempts, `held` the awaiting ones, no cap exceeded, the vendor / hosting / attacker / treasury balances | `OK` lines under `End state, re-read from the chain` |
 | The window fields of `mandate()` (period, `resets_at`, the period's counters, `exhausted`, `expired`) follow the block height | `OK    the window fields (…) are consistent with the recorded state at the current height` |
 | The mandate is locked | `OK    locked: no key can sign for mandate.preavis-1794034063.testnet` |
-| The standing challenge mandate (`testnet/challenge.json`): same code, allowlisted imports, locked, its key function-call only, the policy as recorded, totals equal to its attempts, no cap exceeded | `OK    challenge: …` lines |
-| Nothing left the challenge mandate for anyone outside its allowlist | `OK    challenge: paid to attackers is 0: …`, from the stored attempts and, independently, from the balance (it may fall only by the allowlisted payments) |
-| Today's window and the reset | `OK    challenge: today's window <n>: <x>/10 payments, <y>/40 denials stored, …` and either `the window resets at block <h> (about <time>)` or `EXHAUSTED: no more requests are accepted until block <h> (about <time>)` |
-| The counter | `attempts so far: <n> / paid to attackers: 0` |
-| All of it | last line `OK: 21 recorded transactions match the chain; end state re-read; locked: no key can sign for it; code hash HYTrsLM8vmnBYBEo236nCxSY1ouRpUdFvF6jB7QgzkhU = reproducible build of 911619475185; imports allowlisted. Challenge: attempts so far: <n> / paid to attackers: 0.`, exit 0 |
+| The challenge mandate (`testnet/challenge.json`; never published, retired): same code, allowlisted imports, locked, the policy as recorded, totals equal to its attempts, no cap exceeded | `OK    challenge: …` lines |
+| It is retired: its function-call key is gone, the key deletion and the close are re-read from the chain, the close sent its remainder only to `refund_to`, and `mandate()` reports closed | `OK    challenge: retired: …` lines |
+| Nothing left the challenge mandate for anyone outside its allowlist | `OK    challenge: paid to attackers is 0: …`, from the stored attempts and, independently, from the balance (it may fall only by the allowlisted payments and the refund) |
+| The counter | `retired, never published; attempts: 0 / paid to attackers: 0` |
+| All of it | last line `OK: 21 recorded transactions match the chain; end state re-read; locked: no key can sign for it; code hash HYTrsLM8vmnBYBEo236nCxSY1ouRpUdFvF6jB7QgzkhU = reproducible build of 911619475185; imports allowlisted. Challenge: retired, never published; attempts: 0 / paid to attackers: 0.`, exit 0 |
 
 Any mismatch prints `FAIL` with a `MISMATCH <field>: chain … | recorded …` line and exits 1; so does a
 mandate that still has a key (`FAIL  NOT LOCKED: …`) or code with a host import outside the

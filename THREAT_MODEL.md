@@ -2,7 +2,7 @@
 
 Préavis limits what the holder of an AI agent's key can make the agent pay. This file lists who holds
 which authority, which layer enforces each limit, and, just as important, what Préavis does **not**
-stop. Version: v1.0, testnet; the live mandates (the recorded run and the challenge) are **locked** (no access key).
+stop. Version: v1.0.1, testnet; the recorded run's mandate is **locked** (no access key). The challenge mandate is also locked, was never published, and is closed ([docs/challenge.md](docs/challenge.md)).
 
 ## What is protected
 
@@ -25,7 +25,7 @@ The mandate account's balance (the agent's budget) and the policy fixed at initi
 
 | Holder | Key / role | Can | Cannot |
 |---|---|---|---|
-| **You** (signing as the agent: in `npm run verify` its working key is generated on your machine and signs every agent call) | function-call key on the agent account: receiver = mandate, method = `request_spend`, no deposit, a gas allowance (0.25 NEAR on the recorded run, 8 NEAR on the challenge) | ask for payments; get them only if the policy allows | pay an unlisted account; exceed a cap; reuse or alter a request ID; claim another policy version; attach a deposit; call any other method; get paid twice by a replay or by two requests at once |
+| **You** (signing as the agent: in `npm run verify` its working key is generated on your machine and signs every agent call) | function-call key on the agent account: receiver = mandate, method = `request_spend`, no deposit, a gas allowance (0.25 NEAR on the recorded run) | ask for payments; get them only if the policy allows | pay an unlisted account; exceed a cap; reuse or alter a request ID; claim another policy version; attach a deposit; call any other method; get paid twice by a replay or by two requests at once |
 | **Owner** | `owner` account named at init | `approve` a held request with its exact arguments, invoice included, if it still fits the caps; `reject` it; `close` the mandate, which sends everything but the storage stake to `refund_to` | request spends (`AGENT_ONLY`); pay anyone outside the allowlist or other than `refund_to`; exceed caps; edit the policy; call the callback |
 | **Owner, offline** | the agent account's full-access key | fire the agent (delete its working key); add a new working key | anything the mandate's checks refuse: signing as the agent is still bounded by the policy |
 | **Deployer, before the lock** | the mandate account's own full-access key, **deleted on testnet** (transaction `2zs58UkW3s1DqVde7zm9wMWAs5RT8MJ9sB9AQkxcd5oF`; the challenge: `2eSEVB5QgXvXzvTspuxtfCPyFrZ2XEnJsLpedVww6XPQ`) | before deletion: **anything**: redeploy code, move the whole balance, add keys | after deletion: nothing; no key exists (see "Not stopped" 3) |
@@ -91,9 +91,13 @@ other than what the agent asked for, or for another invoice.
    inside the caps, and the next period starts fresh (VERIFY 29, 30). Denials past `max_denials` are
    counted but not stored, so they cannot grow storage. The storage for every slot of every period is
    reserved at init, so the mandate can always settle or reject what it holds.
+   The holder can do this again at the start of every period, so if many players shared one key,
+   one of them could block the others every day. That is why the challenge mandate's shared key
+   was never published ([docs/challenge.md](docs/challenge.md)); a public challenge would need
+   per-player keys or a rate-limited relayer.
 5. **Spending the key's gas allowance.** Every call costs the agent account gas, up to the key's
-   allowance. A flood spends it: on the challenge, 8 NEAR is about 36,000 calls, an hour at 10
-   transactions a second ([docs/challenge.md](docs/challenge.md)). That costs gas, not the
+   allowance. Calls with very large arguments spend it fastest: an independent review estimated
+   that an 8 NEAR allowance lasts about 230 such calls ([docs/challenge.md](docs/challenge.md)). That costs gas, not the
    mandate's money; when the allowance is gone the key stops working until the owner adds a new one
    or rotates the mandate.
 6. **A lost owner key.** Nobody can approve held requests or close early any more. Nothing is
