@@ -9,10 +9,12 @@
 //!
 //! The key's secret half is written only to the ignored `.credentials/testnet/challenge/<label>/`.
 //! The public record, `testnet/challenge.json`, holds account names, public keys and transactions.
-//! Rotation: run again with a new `PREAVIS_CHALLENGE_LABEL`; see README, "Challenge".
+//! Rotation (docs/challenge.md): deploy a new label, then `npm run challenge-retire` the old one: the
+//! offline full-access key deletes the old function-call key, and the owner closes the old mandate.
 //! Environment: PREAVIS_OWNER_CREDENTIALS (else a faucet account), PREAVIS_FUNDERS, PREAVIS_CHALLENGE_LABEL
 //! (default c1), PREAVIS_CHALLENGE_UNTIL (unix time, default 2026-11-27 00:00 KST),
-//! PREAVIS_CHALLENGE_ALLOWANCE_NEAR (default 8).
+//! PREAVIS_CHALLENGE_ALLOWANCE_NEAR (default 8), PREAVIS_CHALLENGE_RECORD (default
+//! testnet/challenge.json).
 mod common;
 
 use anyhow::{Context, Result, ensure};
@@ -264,13 +266,13 @@ async fn deploy_challenge() -> Result<()> {
         "transactions": {"init": tx(&init), "hand_over": tx(&handed), "lock": tx(&locked)},
         "deploy_seconds": started.elapsed().as_secs(),
     });
-    std::fs::create_dir_all("testnet")?;
-    std::fs::write(
-        "testnet/challenge.json",
-        serde_json::to_string_pretty(&record)? + "\n",
-    )?;
+    let record_path = record_path();
+    if let Some(dir) = std::path::Path::new(&record_path).parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    std::fs::write(&record_path, serde_json::to_string_pretty(&record)? + "\n")?;
     println!(
-        "challenge {label} deployed and locked in {} s: mandate {}, agent {} (function-call key {}, allowance {} NEAR; one denied 300 Tgas call held {} NEAR of it in flight and used {} NEAR after the refund). Secret half: {keys}/agent-fc-key (not printed). Record: testnet/challenge.json",
+        "challenge {label} deployed and locked in {} s: mandate {}, agent {} (function-call key {}, allowance {} NEAR; one denied 300 Tgas call held {} NEAR of it in flight and used {} NEAR after the refund). Secret half: {keys}/agent-fc-key (not printed). Record: {record_path}",
         started.elapsed().as_secs(),
         mandate.id(),
         agent.id(),
@@ -278,6 +280,89 @@ async fn deploy_challenge() -> Result<()> {
         near(allowance.as_yoctonear()),
         near(in_flight),
         near(per_call),
+    );
+    Ok(())
+}
+
+fn record_path() -> String {
+    std::env::var("PREAVIS_CHALLENGE_RECORD").unwrap_or_else(|_| "testnet/challenge.json".into())
+}
+
+/// `npm run challenge-retire`: ends the challenge in the record. The agent's offline full-access key
+/// deletes the published function-call key (nobody can call the mandate any more), and the owner
+/// closes the mandate, which sends everything but the storage stake to `refund_to`.
+#[tokio::test]
+#[ignore = "acts on NEAR testnet; run with `npm run challenge-retire`"]
+async fn retire_challenge() -> Result<()> {
+    let rpc = std::env::var("PREAVIS_TESTNET_RPC")
+        .unwrap_or_else(|_| "https://test.rpc.fastnear.com".into());
+    let worker = near_workspaces::testnet().rpc_addr(&rpc).await?;
+    let path = record_path();
+    let record: Value =
+        serde_json::from_str(&std::fs::read_to_string(&path).with_context(|| path.clone())?)?;
+    let field = |k: &str| {
+        record[k]
+            .as_str()
+            .map(String::from)
+            .with_context(|| format!("{path}: {k}"))
+    };
+    let (label, owner_id, mandate, agent_id) = (
+        field("label")?,
+        field("owner")?,
+        field("mandate")?,
+        field("agent")?,
+    );
+    let started = std::time::Instant::now();
+    let owner_file = std::env::var("PREAVIS_OWNER_CREDENTIALS")
+        .unwrap_or_else(|_| format!(".credentials/testnet/{owner_id}/{owner_id}.json"));
+    let owner = Account::from_file(&owner_file, &worker).with_context(|| owner_file.clone())?;
+    let agent_file = format!(".credentials/testnet/challenge/{label}/{agent_id}.json");
+    let agent = Account::from_file(&agent_file, &worker).with_context(|| agent_file.clone())?;
+    ensure!(
+        owner.id().as_str() == owner_id && agent.id().as_str() == agent_id,
+        "credential files name other accounts"
+    );
+
+    let public: near_workspaces::types::PublicKey = field("agent_public_key")?.parse()?;
+    let fired = agent
+        .batch(agent.id())
+        .delete_key(public)
+        .transact()
+        .await?;
+    ensure!(
+        fired.is_success(),
+        "deleting the function-call key: {fired:?}"
+    );
+    let closed = owner
+        .call(&mandate.parse()?, "close")
+        .gas(Gas::from_tgas(100))
+        .transact()
+        .await?;
+    ensure!(closed.is_success(), "close: {closed:?}");
+    let event = closed
+        .logs()
+        .iter()
+        .find_map(|l| l.strip_prefix("EVENT_JSON:"))
+        .map(serde_json::from_str::<Value>)
+        .transpose()?
+        .context("no closed event")?;
+    let summary: Value = worker.view(&mandate.parse()?, "mandate").await?.json()?;
+    let keys = worker.view_access_keys(agent.id()).await?;
+    ensure!(summary["closed"] == true, "{summary}");
+    ensure!(
+        keys.iter().all(|k| matches!(
+            k.access_key.permission,
+            near_workspaces::types::AccessKeyPermission::FullAccess
+        )),
+        "a function-call key is left on {agent_id}"
+    );
+    println!(
+        "challenge {label} retired in {} s: function-call key deleted (tx {}); {mandate} closed (tx {}), {} NEAR to {}; the agent keeps only its offline full-access key",
+        started.elapsed().as_secs(),
+        fired.outcome().transaction_hash,
+        closed.outcome().transaction_hash,
+        near(event["data"][0]["amount"].as_str().unwrap_or("0").parse()?),
+        event["data"][0]["refund_to"].as_str().unwrap_or("?"),
     );
     Ok(())
 }
