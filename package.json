@@ -8,6 +8,7 @@
   },
   "scripts": {
     "verify": "cargo test --locked -- --nocapture --test-threads=1",
+    "verify:fuzz": "PREAVIS_FUZZ=long cargo test --locked --test fuzz -- --nocapture",
     "verify:reproducible": "node scripts/verify-reproducible.mjs",
     "attack-local": "cargo test --locked --test attack -- --nocapture",
     "agent": "cargo run --locked --quiet --example agent",
