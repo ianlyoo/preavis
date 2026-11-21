@@ -1,8 +1,12 @@
-# Préavis
+<h1><a href="#1-verify-everything-in-one-command"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/banner.dark.webp"><img alt="Préavis: a contract holds the agent's budget under a fixed policy, and the agent's key can call exactly one method. 0 leaked: every red-team attack blocked on-chain. Opens the one-command check." src="assets/readme/banner.light.webp" width="836"></picture></a></h1>
 
 **One command gives you our agent's key in a local NEAR sandbox. Check that it cannot pay anyone outside its mandate.**
 
 *You control the agent. You cannot exceed its authority.*
+
+**[Verify in one command](#1-verify-everything-in-one-command)** (`npm run verify`, local NEAR sandbox) · [35 claims](VERIFY.md), each with its command · [Threat model](THREAT_MODEL.md)
+
+<a href="#how-it-works"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/screen.dark.webp"><img alt="Mandate, a NEAR contract with a fixed policy: 1 payees and cap per payee, 2 total budget, 3 per-period limit, 4 expiry. The agent key calls 1 method: request_spend, nothing else." src="assets/readme/screen.light.webp" width="836"></picture></a>
 
 Préavis is a spending mandate for an AI agent on NEAR. A contract account holds the agent's budget
 under a fixed policy: which payees, how much each, how much in total, how much the agent may spend
@@ -501,7 +505,7 @@ The contract is about 610 lines of Rust in [`src/lib.rs`](src/lib.rs). The scena
 
 ## Disclosure: AI-generated code
 
-AI coding agents (Anthropic's Claude, through Claude Code) wrote most of the code, tests and
+Cloud-model AI coding agents wrote most of the code, tests and
 documentation in this repository, from a design a human chose. That is also why every claim here comes with a command: do not take
 the author's word for it, run it.
 
@@ -510,4 +514,3 @@ the author's word for it, run it.
 near-sdk-rs 5.30.1, near-workspaces-rs 0.24.0, near-sandbox 0.4.0 (nearcore 2.14.0) and NEAR testnet,
 plus FastNEAR's public testnet RPC and nearblocks for links. The recorded agent run used
 Qwen2.5-7B-Instruct (Apache-2.0) on llama.cpp.
-Built at NEAR HACKATHON "Build Beyond Boundaries" (2026).
